@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run *)",
+      "Bash(pnpm *)",
+      "Bash(psql --version)",
+      "Bash(sc query *)",
+      "Bash(PGPASSWORD=tongquetai /c/Program Files/PostgreSQL/18/bin/psql *)",
+      "Bash(PGPASSWORD=postgres /c/Program Files/PostgreSQL/18/bin/psql *)",
+      "Bash(/c/Program Files/PostgreSQL/18/bin/psql *)",
+      "Bash(\"/c/Program Files/PostgreSQL/18/bin/psql\" -U postgres -h localhost -p 5432 -c \"SHOW data_directory\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(/c/Program Files/PostgreSQL/18/bin/pg_ctl reload *)",
+      "Bash(sc stop *)",
+      "Bash(sc start *)",
+      "Bash(powershell *)",
+      "Bash(PGPASSWORD=tongquetai \"/c/Program Files/PostgreSQL/18/bin/psql\" -U postgres -h localhost -p 5432 -c \"CREATE DATABASE tongquetai\")"
+    ]
+  }
+}

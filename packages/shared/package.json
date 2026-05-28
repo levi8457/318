@@ -1,0 +1,16 @@
+{
+  "name": "@tongquetai/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "铜雀台前后端共享类型与常量",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

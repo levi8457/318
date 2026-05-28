@@ -1,0 +1,18 @@
+{
+  "name": "@tongquetai/ai-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "铜雀台 AI 引擎 — Prompt 模板与 LLM 服务封装",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tongquetai/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
