@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto, UpdateCustomerDto, AddTagDto, AddPreferenceDto, AddProjectDto } from './dto/customer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -14,8 +14,27 @@ export class CustomerController {
 
   @Get()
   @ApiOperation({ summary: '客户列表（admin 看全部，consultant 看自己的）' })
-  findAll(@CurrentUser('role') role: string, @CurrentUser('userId') userId: string) {
-    return this.customerService.findAll(role, userId);
+  @ApiQuery({ name: 'page', required: false, description: '页码' })
+  @ApiQuery({ name: 'pageSize', required: false, description: '每页数量' })
+  @ApiQuery({ name: 'keyword', required: false, description: '关键词搜索（姓名/手机号）' })
+  @ApiQuery({ name: 'status', required: false, description: '状态筛选' })
+  @ApiQuery({ name: 'budgetSensitivity', required: false, description: '预算敏感度筛选' })
+  findAll(
+    @CurrentUser('role') role: string,
+    @CurrentUser('userId') userId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('keyword') keyword?: string,
+    @Query('status') status?: string,
+    @Query('budgetSensitivity') budgetSensitivity?: string,
+  ) {
+    return this.customerService.findAll(role, userId, {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+      keyword,
+      status,
+      budgetSensitivity,
+    });
   }
 
   @Post()
@@ -56,6 +75,13 @@ export class CustomerController {
   addPreference(@Param('id') id: string, @Body() dto: AddPreferenceDto,
     @CurrentUser('role') role: string, @CurrentUser('userId') userId: string) {
     return this.customerService.addPreference(id, dto, role, userId);
+  }
+
+  @Delete(':id/preferences/:prefId')
+  @ApiOperation({ summary: '删除喜好备忘' })
+  removePreference(@Param('id') id: string, @Param('prefId') prefId: string,
+    @CurrentUser('role') role: string, @CurrentUser('userId') userId: string) {
+    return this.customerService.removePreference(id, prefId, role, userId);
   }
 
   @Post(':id/projects')

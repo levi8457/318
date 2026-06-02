@@ -1,6 +1,6 @@
 import {
   Entity, Column, PrimaryGeneratedColumn, CreateDateColumn,
-  UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn,
+  UpdateDateColumn, DeleteDateColumn, ManyToOne, OneToMany, JoinColumn,
 } from 'typeorm';
 import { User } from '../../auth/entities/user.entity';
 
@@ -36,6 +36,28 @@ export class CustomerProfile {
 
   @Column({ nullable: true })
   notes: string;
+
+  @Column({ name: 'birthday', type: 'date', nullable: true })
+  birthday: Date;
+
+  @Column({ name: 'anniversary', type: 'date', nullable: true })
+  anniversary: Date;
+
+  @Column({ name: 'last_beauty_date', type: 'date', nullable: true })
+  lastBeautyDate: Date;
+
+  @Column({ name: 'referred_by', nullable: true })
+  referredBy: string;
+
+  @ManyToOne(() => CustomerProfile, { nullable: true })
+  @JoinColumn({ name: 'referred_by' })
+  referrer: CustomerProfile;
+
+  @OneToMany(() => CustomerProfile, customer => customer.referrer)
+  referrals: CustomerProfile[];
+
+  @OneToMany(() => Tag, tag => tag.customer)
+  tags: Tag[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -1,12 +1,33 @@
 <template>
   <div class="page-container">
-    <div class="page-header"><h2 class="page-title">管理员仪表盘</h2></div>
+    <div class="page-header">
+      <h2 class="page-title">管理员仪表盘</h2>
+    </div>
 
     <!-- 核心业务指标 -->
     <div class="card-grid">
       <div class="stat-card" v-for="card in metricCards" :key="card.label">
         <div class="stat-label">{{ card.label }}</div>
         <div class="stat-value">{{ card.value }}</div>
+      </div>
+    </div>
+
+    <!-- 待处理事项 -->
+    <div class="table-card" v-if="alerts.overdueTasks > 0 || alerts.pendingScripts > 0 || alerts.pendingCampaigns > 0">
+      <h3>待处理事项</h3>
+      <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap">
+        <el-tag v-if="alerts.overdueTasks > 0" type="danger" size="large">
+          {{ alerts.overdueTasks }} 个逾期任务
+        </el-tag>
+        <el-tag v-if="alerts.pendingScripts > 0" type="warning" size="large">
+          {{ alerts.pendingScripts }} 条待审核话术
+        </el-tag>
+        <el-tag v-if="alerts.pendingCampaigns > 0" type="info" size="large">
+          {{ alerts.pendingCampaigns }} 个待处理活动
+        </el-tag>
+        <el-tag v-if="alerts.inactiveConsultants > 0" type="info" size="large">
+          {{ alerts.inactiveConsultants }} 个停用咨询师
+        </el-tag>
       </div>
     </div>
 
@@ -33,18 +54,22 @@
         <h3>客户增长趋势</h3>
         <div style="height: 200px; display: flex; align-items: flex-end; gap: 8px; margin-top: 16px; padding: 0 20px;">
           <div v-for="(d, i) in trends.customerGrowth" :key="i"
-            style="flex:1; background: #409eff; border-radius: 4px 4px 0 0; text-align: center; padding-top: 8px; color: #fff;"
-            :style="{ height: (d.value / 300 * 150) + 'px' }">
-            {{ d.value }}
+            class="trend-bar"
+            :style="{ height: getBarHeight(d.value) + 'px' }">
+            <span class="trend-value">{{ d.value }}</span>
+            <span class="trend-label">{{ d.date.split('-')[1] }}月</span>
           </div>
         </div>
       </div>
       <div class="table-card">
         <h3>品项分布</h3>
-        <div v-for="p in trends.projectDistribution" :key="p.projectType" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
-          <span>{{ p.projectType }}</span>
-          <span style="color: #409eff; font-weight: 600;">{{ p.count }}</span>
+        <div v-if="trends.projectDistribution?.length">
+          <div v-for="p in trends.projectDistribution" :key="p.projectType" class="distribution-item">
+            <span>{{ p.projectType }}</span>
+            <span style="color: #409eff; font-weight: 600;">{{ p.count }}</span>
+          </div>
         </div>
+        <el-empty v-else description="暂无数据" :image-size="60" />
       </div>
     </div>
   </div>
@@ -57,12 +82,19 @@ import request from '@/api/request';
 const metricCards = ref<any[]>([]);
 const ranking = ref<any[]>([]);
 const trends = ref<any>({ customerGrowth: [], projectDistribution: [] });
+const alerts = ref<any>({ overdueTasks: 0, pendingScripts: 0, pendingCampaigns: 0, inactiveConsultants: 0 });
+
+function getBarHeight(value: number): number {
+  const maxValue = Math.max(...trends.value.customerGrowth.map((d: any) => d.value), 1);
+  return (value / maxValue) * 150;
+}
 
 onMounted(async () => {
-  const [metricsRes, rankingRes, trendsRes] = await Promise.all([
+  const [metricsRes, rankingRes, trendsRes, alertsRes] = await Promise.all([
     request.get('/admin/dashboard/metrics'),
     request.get('/admin/dashboard/ranking'),
     request.get('/admin/dashboard/trends'),
+    request.get('/admin/dashboard/alerts'),
   ]);
   const m: any = metricsRes;
   metricCards.value = [
@@ -73,7 +105,41 @@ onMounted(async () => {
     { label: '本月面诊', value: m.sessionsThisMonth },
     { label: '任务完成率', value: (m.taskCompletionRate * 100).toFixed(1) + '%' },
   ];
-  ranking.value = (rankingRes as any[]) || [];
-  trends.value = trendsRes as any;
+  ranking.value = (rankingRes as unknown as any[]) || [];
+  trends.value = trendsRes as unknown as any;
+  alerts.value = alertsRes as unknown as any;
 });
 </script>
+
+<style scoped>
+.trend-bar {
+  flex: 1;
+  background: #409eff;
+  border-radius: 4px 4px 0 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+  min-height: 20px;
+}
+
+.trend-value {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trend-label {
+  color: #909399;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.distribution-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+</style>

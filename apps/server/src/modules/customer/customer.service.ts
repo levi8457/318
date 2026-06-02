@@ -4,6 +4,14 @@ import { Repository } from 'typeorm';
 import { CustomerProfile, Tag, Preference, ProjectTimeline } from './entities/customer.entity';
 import { CreateCustomerDto, UpdateCustomerDto, AddTagDto, AddPreferenceDto, AddProjectDto } from './dto/customer.dto';
 
+export interface CustomerListQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  status?: string;
+  budgetSensitivity?: string;
+}
+
 @Injectable()
 export class CustomerService {
   constructor(
@@ -27,13 +35,50 @@ export class CustomerService {
     return customer;
   }
 
-  /** 获取客户列表（admin 看全部，consultant 看自己的） */
-  async findAll(userRole: string, userId: string) {
-    const where: any = {};
+  /** 获取客户列表（admin 看全部，consultant 看自己的）支持搜索/分页/筛选 */
+  async findAll(userRole: string, userId: string, query: CustomerListQuery = {}) {
+    const { page = 1, pageSize = 20, keyword, status, budgetSensitivity } = query;
+
+    const qb = this.customerRepo.createQueryBuilder('customer');
+    qb.leftJoinAndSelect('customer.consultant', 'consultant');
+
+    // 数据隔离：consultant 只看自己的客户
     if (userRole === 'consultant') {
-      where.consultantId = userId;
+      qb.where('customer.consultant_id = :userId', { userId });
     }
-    return this.customerRepo.find({ where, order: { createdAt: 'DESC' } });
+
+    // 关键词搜索（姓名、手机号）
+    if (keyword) {
+      qb.andWhere(
+        '(customer.name ILIKE :keyword OR customer.phone ILIKE :keyword)',
+        { keyword: `%${keyword}%` },
+      );
+    }
+
+    // 状态筛选
+    if (status) {
+      qb.andWhere('customer.status = :status', { status });
+    }
+
+    // 预算敏感度筛选
+    if (budgetSensitivity) {
+      qb.andWhere('customer.budget_sensitivity = :budgetSensitivity', { budgetSensitivity });
+    }
+
+    // 分页
+    const skip = (page - 1) * pageSize;
+    qb.orderBy('customer.createdAt', 'DESC');
+    qb.skip(skip).take(pageSize);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return {
+      items,
+      total,
+      page: Number(page),
+      pageSize: Number(pageSize),
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   /** 创建客户 */
@@ -79,6 +124,13 @@ export class CustomerService {
   async addPreference(customerId: string, dto: AddPreferenceDto, userRole: string, userId: string) {
     await this.checkOwnership(customerId, userRole, userId);
     return this.preferenceRepo.save({ customerId, importance: 'normal', ...dto });
+  }
+
+  /** 删除喜好备忘 */
+  async removePreference(customerId: string, prefId: string, userRole: string, userId: string) {
+    await this.checkOwnership(customerId, userRole, userId);
+    await this.preferenceRepo.delete({ id: prefId, customerId });
+    return { message: '备忘已删除' };
   }
 
   /** 添加项目时间轴 */

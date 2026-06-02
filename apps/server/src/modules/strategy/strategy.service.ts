@@ -10,8 +10,25 @@ export class StrategyService {
     private strategyRepo: Repository<FollowUpStrategyTemplate>,
   ) {}
 
-  async findAll() {
-    return this.strategyRepo.find({ order: { createdAt: 'DESC' } });
+  async findAll(query?: { keyword?: string; category?: string; isActive?: boolean }) {
+    const qb = this.strategyRepo.createQueryBuilder('s');
+
+    if (query?.keyword) {
+      qb.andWhere('(s.name ILIKE :keyword OR s.category ILIKE :keyword)', {
+        keyword: `%${query.keyword}%`,
+      });
+    }
+
+    if (query?.category) {
+      qb.andWhere('s.category = :category', { category: query.category });
+    }
+
+    if (query?.isActive !== undefined) {
+      qb.andWhere('s.is_active = :isActive', { isActive: query.isActive });
+    }
+
+    qb.orderBy('s.created_at', 'DESC');
+    return qb.getMany();
   }
 
   async findActive() {
@@ -43,6 +60,14 @@ export class StrategyService {
   async toggleStatus(id: string) {
     const tpl = await this.findOne(id);
     await this.strategyRepo.update(id, { isActive: !tpl.isActive });
-    return { isActive: !tpl.isActive };
+    return this.findOne(id);
+  }
+
+  async getCategories() {
+    const result = await this.strategyRepo
+      .createQueryBuilder('s')
+      .select('DISTINCT s.category', 'category')
+      .getRawMany();
+    return result.map(r => r.category).filter(Boolean);
   }
 }

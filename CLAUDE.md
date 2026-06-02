@@ -542,6 +542,160 @@ pnpm run test:e2e
 
 ---
 
+## 迭代开发规范
+
+### 迭代节奏
+- 每个迭代周期为 1 周
+- 每个迭代聚焦一个核心功能模块
+- 迭代结束前必须通过完整验收
+
+### 迭代验收流程
+每个迭代完成后，按以下顺序验收：
+```bash
+# 1. 类型检查
+pnpm run type-check
+
+# 2. Lint 检查
+pnpm run lint
+
+# 3. 构建验证
+pnpm run build
+
+# 4. 手动测试核心链路
+# - 启动开发环境：pnpm run dev
+# - 测试当前迭代涉及的功能
+# - 测试前后端数据流是否正常
+```
+
+### 迭代间回归测试
+- 每个新迭代开始前，快速回归上一个迭代的核心功能
+- 重点关注：数据隔离、权限控制、AI 分析流程
+- 发现回归问题立即修复，不留到下一个迭代
+
+### 进度更新规范
+- 每个迭代完成后更新本文件底部的"进度追踪"
+- 标记已完成的任务为 `[x]`
+- 记录遇到的问题和解决方案
+- 更新"当前状态"描述
+
+---
+
+## 数据库操作规范
+
+### 使用 psql 调试
+```bash
+# 连接数据库
+PGPASSWORD=tongquetai "/c/Program Files/PostgreSQL/18/bin/psql" -U postgres -h localhost -p 5432 -d tongquetai
+
+# 常用查询
+SELECT * FROM users LIMIT 10;
+SELECT * FROM customer_profiles WHERE consultant_id = 'xxx';
+SELECT COUNT(*) FROM consultation_sessions;
+```
+
+### 数据迁移管理
+- 使用 TypeORM 的 migration 功能管理表结构变更
+- 迁移文件命名：`{timestamp}-{MigrationName}.ts`
+- 生产环境禁用 `synchronize: true`，必须使用迁移
+
+### 种子数据管理
+- 默认管理员账号通过 `scripts/seed.sh` 创建
+- 测试数据在 `test-data/` 目录管理
+- 开发环境可使用 mock 数据，生产环境使用真实数据
+
+---
+
+## AI 集成规范
+
+### DeepSeek API 调用
+- 统一通过 `packages/ai-engine/services/llm.service.ts` 封装
+- 超时时间：30 秒
+- 重试机制：最多 3 次，指数退避
+- 错误分类：网络错误/超时/限流/参数错误，分别处理
+
+### Prompt 版本管理
+- Prompt 模板存放在 `packages/ai-engine/prompts/` 目录
+- 每个 Prompt 文件包含版本号
+- 修改 Prompt 需要记录变更日志
+- 重大变更需要重新测试效果
+
+### AI 分析结果缓存
+- 相同输入的分析结果缓存 1 小时
+- 缓存键：会话 ID + 转写文本 hash
+- 缓存失效：转写文本更新时自动失效
+
+### AI 降级策略
+- LLM API 不可用时，使用规则引擎返回模板化建议
+- 降级提示："当前为离线模式，以下为系统推荐的标准化建议"
+- 降级日志记录，便于排查问题
+
+---
+
+## 测试数据管理
+
+### test-data 目录使用
+```
+test-data/
+├── 语音测试指南.md        # 测试流程说明
+├── test-voice-tag.ps1     # PowerShell 测试脚本
+├── transcript-1-热玛吉客户.md  # 测试转写文本
+└── transcript-2-隆鼻客户.md    # 测试转写文本
+```
+
+### 测试账号
+- 管理员：admin / admin123456
+- 咨询师：通过管理员创建，默认密码 123456
+
+### mock 数据切换
+- 环境变量 `ASR_PROVIDER=mock` 启用 mock ASR
+- 环境变量 `DEEPSEEK_API_KEY=your_api_key` 配置真实 LLM
+- 开发阶段可混用 mock 和真实服务
+
+---
+
+## 常用命令
+
+```bash
+# 安装依赖
+pnpm install
+
+# 启动开发环境（前后端同时启动）
+pnpm run dev
+
+# 仅启动前端
+pnpm run dev:web
+
+# 仅启动后端
+pnpm run dev:server
+
+# 类型检查
+pnpm run type-check
+
+# Lint 检查与修复
+pnpm run lint
+pnpm run lint:fix
+
+# 构建生产版本
+pnpm run build
+
+# 运行数据库迁移
+pnpm run migration:run
+
+# 生成数据库迁移
+pnpm run migration:generate -- -n MigrationName
+
+# 回滚数据库迁移
+pnpm run migration:revert
+
+# 运行测试
+pnpm run test
+
+# 运行端到端测试
+pnpm run test:e2e
+```
+
+---
+
 ## 参考资料
 
 - [Vue 3 文档](https://vuejs.org/)

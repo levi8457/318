@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { StrategyService } from './strategy.service';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -16,8 +16,26 @@ export class StrategyController {
   @Get()
   @ApiOperation({ summary: '策略模板列表' })
   @Roles('admin', 'consultant')
-  findAll() {
-    return this.strategyService.findAll();
+  @ApiQuery({ name: 'keyword', required: false })
+  @ApiQuery({ name: 'category', required: false })
+  @ApiQuery({ name: 'isActive', required: false })
+  findAll(
+    @Query('keyword') keyword?: string,
+    @Query('category') category?: string,
+    @Query('isActive') isActive?: string,
+  ) {
+    return this.strategyService.findAll({
+      keyword,
+      category,
+      isActive: isActive !== undefined ? isActive === 'true' : undefined,
+    });
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: '获取策略分类列表' })
+  @Roles('admin', 'consultant')
+  getCategories() {
+    return this.strategyService.getCategories();
   }
 
   @Post()

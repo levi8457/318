@@ -1,6 +1,8 @@
 <template>
   <div class="page-container">
-    <div class="page-header"><h2 class="page-title">我的仪表盘</h2></div>
+    <div class="page-header">
+      <h2 class="page-title">我的仪表盘</h2>
+    </div>
 
     <div class="card-grid">
       <div class="stat-card">
@@ -33,9 +35,22 @@
     <div class="table-card">
       <h3>今日待办任务</h3>
       <el-table :data="todayTasks" stripe style="margin-top: 12px">
-        <el-table-column prop="title" label="任务" />
-        <el-table-column prop="taskType" label="类型" width="100" />
-        <el-table-column prop="priority" label="优先级" width="80" />
+        <el-table-column prop="title" label="任务" min-width="200" />
+        <el-table-column label="客户" width="120">
+          <template #default="{ row }">{{ row.customer?.name || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="taskType" label="类型" width="100">
+          <template #default="{ row }">
+            <el-tag size="small">{{ taskTypeMap[row.taskType] || row.taskType }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="priority" label="优先级" width="80">
+          <template #default="{ row }">
+            <el-tag :type="priorityType[row.priority] || 'info'" size="small">
+              {{ priorityMap[row.priority] || row.priority }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="triggerDate" label="到期日" width="120">
           <template #default="{ row }">{{ new Date(row.triggerDate).toLocaleDateString() }}</template>
         </el-table-column>
@@ -46,19 +61,21 @@
           </template>
         </el-table-column>
       </el-table>
+      <el-empty v-if="!todayTasks.length" description="今日无待办任务" />
     </div>
 
     <!-- 最近活跃客户 -->
     <div class="table-card">
       <h3>最近活跃客户</h3>
       <el-row :gutter="16" style="margin-top: 12px">
-        <el-col v-for="c in recentCustomers" :key="c.customerId" :span="6" style="margin-bottom:12px">
-          <el-card shadow="hover">
+        <el-col v-for="c in recentCustomers" :key="c.customerId" :xs="12" :sm="8" :md="6" style="margin-bottom:12px">
+          <el-card shadow="hover" @click="$router.push(`/customers/${c.customerId}`)" style="cursor:pointer">
             <div style="font-weight:600; margin-bottom:4px">{{ c.customerName }}</div>
             <div style="font-size:12px; color:#909399">{{ c.lastActivityType }} · {{ new Date(c.lastActivity).toLocaleDateString() }}</div>
           </el-card>
         </el-col>
       </el-row>
+      <el-empty v-if="!recentCustomers.length" description="暂无活跃客户" />
     </div>
   </div>
 </template>
@@ -72,15 +89,34 @@ const metrics = ref({ totalCustomers: 0, todayTasks: 0, sessionsThisMonth: 0, co
 const todayTasks = ref<any[]>([]);
 const recentCustomers = ref<any[]>([]);
 
+const taskTypeMap: Record<string, string> = {
+  follow_up: '跟进',
+  recheck: '复诊',
+  care: '关怀',
+  promotion: '营销',
+};
+
+const priorityMap: Record<string, string> = {
+  high: '高',
+  medium: '中',
+  low: '低',
+};
+
+const priorityType: Record<string, string> = {
+  high: 'danger',
+  medium: 'warning',
+  low: 'info',
+};
+
 async function fetchData() {
   const [m, t, c] = await Promise.all([
     request.get('/consultant/dashboard/metrics'),
     request.get('/consultant/dashboard/today-tasks'),
     request.get('/consultant/dashboard/recent-customers'),
   ]);
-  metrics.value = m as any;
-  todayTasks.value = t as any[];
-  recentCustomers.value = c as any[];
+  metrics.value = m as unknown as any;
+  todayTasks.value = t as unknown as any[];
+  recentCustomers.value = c as unknown as any[];
 }
 
 async function completeTask(id: string) {

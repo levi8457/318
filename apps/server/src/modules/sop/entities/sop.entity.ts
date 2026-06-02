@@ -11,8 +11,8 @@ export class SOPTemplate {
   @Column({ length: 200 })
   name: string;
 
-  @Column({ name: 'project_type', length: 100 })
-  projectType: string;
+  @Column('text', { name: 'project_types', array: true, default: '{}' })
+  projectTypes: string[];
 
   @Column('jsonb', { default: '[]' })
   nodes: any[];

@@ -3,6 +3,36 @@
  * 用于 AI Agent 生成个性化跟进策略
  */
 
+export const SESSION_ANALYSIS_PROMPT = `
+你是一位资深的医美咨询顾问。请分析以下面诊会话的转写文本，提取关键信息。
+
+## 面诊转写文本
+{{transcript}}
+
+## 输出要求
+请严格按照以下 JSON 格式输出，不要包含任何其他内容：
+
+{
+  "summary": "面诊摘要（200字以内）",
+  "keyPoints": [
+    { "topic": "主题", "description": "描述", "intent": "high|medium|low" }
+  ],
+  "blockers": [
+    { "type": "price|pain|trust|family|other", "detail": "详细描述", "suggestedResponse": "建议应对话术" }
+  ],
+  "decisionMakers": ["决策人"],
+  "tags": [
+    { "category": "标签分类", "value": "标签值" }
+  ],
+  "followUpStrategy": {
+    "summary": "策略概述（200字以内）",
+    "talkingPoints": ["跟进话术1", "跟进话术2"],
+    "bestFollowUpTime": "最佳跟进时间",
+    "caseReferences": ["参考案例"]
+  }
+}
+`;
+
 export const STRATEGY_GENERATION_PROMPT = `
 你是一位资深的医美咨询顾问。请根据以下信息生成个性化跟进策略：
 

@@ -1,20 +1,21 @@
 import {
   Controller,
   Post,
+  Param,
   UseInterceptors,
   UploadedFile,
-  UploadedFiles,
   Body,
   UseGuards,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { UploadService } from './upload.service';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('文件上传')
 @ApiBearerAuth()
@@ -22,14 +23,6 @@ import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 @Controller('upload')
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
-
-  private getUploadDir(): string {
-    const uploadDir = join(process.cwd(), 'uploads');
-    if (!existsSync(uploadDir)) {
-      mkdirSync(uploadDir, { recursive: true });
-    }
-    return uploadDir;
-  }
 
   @Post('audio')
   @ApiOperation({ summary: '上传音频文件（MP3/WAV）' })
@@ -71,7 +64,7 @@ export class UploadController {
   }
 
   @Post('audio/session/:sessionId')
-  @ApiOperation({ summary: '上传音频并关联到会话，自动进行AI分析' })
+  @ApiOperation({ summary: '上传音频并关联到会话，异步转写' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -103,12 +96,13 @@ export class UploadController {
     }),
   )
   async uploadAudioForSession(
+    @Param('sessionId') sessionId: string,
     @UploadedFile() file: Express.Multer.File,
-    @Body('transcript') transcript: string,
+    @CurrentUser('userId') userId: string,
   ) {
     if (!file) {
       throw new BadRequestException('请上传音频文件');
     }
-    return this.uploadService.processAudioAndAnalyze(file, transcript);
+    return this.uploadService.uploadAndTranscribe(sessionId, file, userId);
   }
 }

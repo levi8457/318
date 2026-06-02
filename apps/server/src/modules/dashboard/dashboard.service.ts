@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
 import { CustomerProfile } from '../customer/entities/customer.entity';
 import { ConsultationSession } from '../session/entities/session.entity';
 import { TaskReminder } from '../task/entities/task.entity';
 import { User } from '../auth/entities/user.entity';
+import { GoldenScript } from '../script/entities/script.entity';
+import { MarketingCampaign } from '../campaign/entities/campaign.entity';
 
 @Injectable()
 export class DashboardService {
@@ -17,93 +19,201 @@ export class DashboardService {
     private taskRepo: Repository<TaskReminder>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(GoldenScript)
+    private scriptRepo: Repository<GoldenScript>,
+    @InjectRepository(MarketingCampaign)
+    private campaignRepo: Repository<MarketingCampaign>,
   ) {}
 
   /** 管理员 — 全局业务指标 */
   async getAdminMetrics() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
     const totalCustomers = await this.customerRepo.count();
     const activeCustomers = await this.customerRepo.count({ where: { status: 'active' } });
+    const newCustomersThisMonth = await this.customerRepo.count({
+      where: { createdAt: MoreThanOrEqual(monthStart) },
+    });
     const totalSessions = await this.sessionRepo.count();
+    const sessionsThisMonth = await this.sessionRepo.count({
+      where: { createdAt: MoreThanOrEqual(monthStart) },
+    });
     const totalTasks = await this.taskRepo.count();
     const completedTasks = await this.taskRepo.count({ where: { status: 'completed' } });
 
     return {
       totalCustomers,
-      newCustomersThisMonth: Math.floor(totalCustomers * 0.15),
+      newCustomersThisMonth,
       activeRate: totalCustomers > 0 ? activeCustomers / totalCustomers : 0,
-      conversionRate: 0.25,
+      conversionRate: totalSessions > 0 ? completedTasks / totalSessions : 0,
       totalSessions,
-      sessionsThisMonth: Math.floor(totalSessions * 0.3),
+      sessionsThisMonth,
       taskCompletionRate: totalTasks > 0 ? completedTasks / totalTasks : 0,
-      followUpRate: 0.82,
+      followUpRate: totalTasks > 0 ? completedTasks / totalTasks : 0,
     };
   }
 
   /** 管理员 — 咨询师业绩排行 */
   async getAdminRanking() {
     const consultants = await this.userRepo.find({ where: { role: 'consultant' } });
-    return consultants.map((c, i) => ({
-      consultantId: c.id,
-      consultantName: c.realName,
-      avatar: c.avatar,
-      totalCustomers: 30 + Math.floor(Math.random() * 20),
-      newCustomersThisMonth: Math.floor(Math.random() * 10),
-      sessionsThisMonth: Math.floor(Math.random() * 15),
-      taskCompletionRate: 0.7 + Math.random() * 0.25,
-      followUpRate: 0.75 + Math.random() * 0.2,
-      conversionRate: 0.15 + Math.random() * 0.2,
-      totalTasks: 50 + Math.floor(Math.random() * 30),
-      completedTasks: 40 + Math.floor(Math.random() * 25),
-    }));
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const rankings = await Promise.all(
+      consultants.map(async (c) => {
+        const totalCustomers = await this.customerRepo.count({
+          where: { consultantId: c.id },
+        });
+        const newCustomersThisMonth = await this.customerRepo.count({
+          where: { consultantId: c.id, createdAt: MoreThanOrEqual(monthStart) },
+        });
+        const sessionsThisMonth = await this.sessionRepo.count({
+          where: { consultantId: c.id, createdAt: MoreThanOrEqual(monthStart) },
+        });
+        const totalTasks = await this.taskRepo.count({
+          where: { consultantId: c.id },
+        });
+        const completedTasks = await this.taskRepo.count({
+          where: { consultantId: c.id, status: 'completed' },
+        });
+
+        return {
+          consultantId: c.id,
+          consultantName: c.realName,
+          avatar: c.avatar,
+          totalCustomers,
+          newCustomersThisMonth,
+          sessionsThisMonth,
+          taskCompletionRate: totalTasks > 0 ? completedTasks / totalTasks : 0,
+          followUpRate: totalTasks > 0 ? completedTasks / totalTasks : 0,
+          conversionRate: 0,
+          totalTasks,
+          completedTasks,
+        };
+      }),
+    );
+
+    return rankings;
   }
 
   /** 管理员 — 趋势图表数据 */
   async getAdminTrends() {
     const months = ['01', '02', '03', '04', '05'];
+    const year = new Date().getFullYear();
+
+    const customerGrowth = await Promise.all(
+      months.map(async (m) => {
+        const monthStart = new Date(`${year}-${m}-01`);
+        const monthEnd = new Date(year, parseInt(m), 1);
+        const count = await this.customerRepo
+          .createQueryBuilder('c')
+          .where('c.created_at >= :start', { start: monthStart })
+          .andWhere('c.created_at < :end', { end: monthEnd })
+          .getCount();
+        return { date: `${year}-${m}`, value: count };
+      }),
+    );
+
+    const monthlySessions = await Promise.all(
+      months.map(async (m) => {
+        const monthStart = new Date(`${year}-${m}-01`);
+        const monthEnd = new Date(year, parseInt(m), 1);
+        const count = await this.sessionRepo
+          .createQueryBuilder('s')
+          .where('s.created_at >= :start', { start: monthStart })
+          .andWhere('s.created_at < :end', { end: monthEnd })
+          .getCount();
+        return { date: `${year}-${m}`, value: count };
+      }),
+    );
+
+    const conversionTrend = await Promise.all(
+      months.map(async (m) => {
+        const monthStart = new Date(`${year}-${m}-01`);
+        const monthEnd = new Date(year, parseInt(m), 1);
+        const sessions = await this.sessionRepo
+          .createQueryBuilder('s')
+          .where('s.created_at >= :start', { start: monthStart })
+          .andWhere('s.created_at < :end', { end: monthEnd })
+          .getCount();
+        const completed = await this.sessionRepo
+          .createQueryBuilder('s')
+          .where('s.created_at >= :start', { start: monthStart })
+          .andWhere('s.created_at < :end', { end: monthEnd })
+          .andWhere('s.status = :status', { status: 'completed' })
+          .getCount();
+        return {
+          date: `${year}-${m}`,
+          value: sessions > 0 ? completed / sessions : 0,
+        };
+      }),
+    );
+
     return {
-      customerGrowth: months.map((m) => ({ date: `2026-${m}`, value: 100 + Math.floor(Math.random() * 200) })),
-      monthlySessions: months.map((m) => ({ date: `2026-${m}`, value: 30 + Math.floor(Math.random() * 80) })),
-      conversionTrend: months.map((m) => ({ date: `2026-${m}`, value: 0.15 + Math.random() * 0.15 })),
-      projectDistribution: [
-        { projectType: '抗衰', count: 45 },
-        { projectType: '塑形', count: 32 },
-        { projectType: '皮肤', count: 58 },
-        { projectType: '微整', count: 28 },
-        { projectType: '口腔', count: 15 },
-      ],
+      customerGrowth,
+      monthlySessions,
+      conversionTrend,
+      projectDistribution: [],
     };
   }
 
   /** 管理员 — 待处理事项 */
   async getAdminAlerts() {
     const overdueTasks = await this.taskRepo.count({ where: { status: 'overdue' } });
+    const pendingScripts = await this.scriptRepo.count({ where: { isApproved: false } });
+    const pendingCampaigns = await this.campaignRepo.count({ where: { status: 'draft' } });
+    const inactiveConsultants = await this.userRepo.count({
+      where: { role: 'consultant', isActive: false },
+    });
+
     return {
-      pendingScripts: Math.floor(Math.random() * 10),
+      pendingScripts,
       overdueTasks,
-      pendingCampaigns: Math.floor(Math.random() * 5),
-      inactiveConsultants: 0,
+      pendingCampaigns,
+      inactiveConsultants,
     };
   }
 
   /** 咨询师 — 个人指标 */
   async getConsultantMetrics(consultantId: string) {
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
     const totalCustomers = await this.customerRepo.count({ where: { consultantId } });
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const newCustomersThisWeek = await this.customerRepo.count({
+      where: { consultantId, createdAt: MoreThanOrEqual(weekStart) },
+    });
+    const pendingCustomers = await this.customerRepo.count({
+      where: { consultantId, status: 'active' },
+    });
     const todayTasks = await this.taskRepo.count({
       where: { consultantId, status: 'pending' },
+    });
+    const completedTasksThisMonth = await this.taskRepo.count({
+      where: { consultantId, status: 'completed' },
+    });
+    const sessionsThisMonth = await this.sessionRepo.count({
+      where: { consultantId, createdAt: MoreThanOrEqual(monthStart) },
+    });
+    const totalTasks = await this.taskRepo.count({ where: { consultantId } });
+    const completedTasks = await this.taskRepo.count({
+      where: { consultantId, status: 'completed' },
     });
 
     return {
       totalCustomers,
-      newCustomersThisWeek: Math.floor(Math.random() * 5),
-      pendingCustomers: Math.floor(totalCustomers * 0.3),
+      newCustomersThisWeek,
+      pendingCustomers,
       todayTasks,
-      completedTasksThisMonth: Math.floor(Math.random() * 30),
-      sessionsThisMonth: Math.floor(Math.random() * 12),
-      taskCompletionRate: 0.8 + Math.random() * 0.15,
-      followUpRate: 0.78 + Math.random() * 0.18,
-      conversionRate: 0.18 + Math.random() * 0.12,
+      completedTasksThisMonth,
+      sessionsThisMonth,
+      taskCompletionRate: totalTasks > 0 ? completedTasks / totalTasks : 0,
+      followUpRate: totalTasks > 0 ? completedTasks / totalTasks : 0,
+      conversionRate: 0,
     };
   }
 

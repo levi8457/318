@@ -21,6 +21,26 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ example: '1990-05-15' })
+  @IsOptional()
+  @IsString()
+  birthday?: string;
+
+  @ApiPropertyOptional({ example: '2020-06-20' })
+  @IsOptional()
+  @IsString()
+  anniversary?: string;
+
+  @ApiPropertyOptional({ example: '2026-01-10' })
+  @IsOptional()
+  @IsString()
+  lastBeautyDate?: string;
+
+  @ApiPropertyOptional({ example: 'customer-uuid' })
+  @IsOptional()
+  @IsString()
+  referredBy?: string;
 }
 
 export class UpdateCustomerDto {
@@ -53,6 +73,26 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsIn(['high', 'medium', 'low'])
   budgetSensitivity?: 'high' | 'medium' | 'low';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  birthday?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  anniversary?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  lastBeautyDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  referredBy?: string;
 }
 
 export class AddTagDto {

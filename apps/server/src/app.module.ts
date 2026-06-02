@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from './config/config.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -13,6 +14,15 @@ import { ScriptModule } from './modules/script/script.module';
 import { CampaignModule } from './modules/campaign/campaign.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { ProjectTypeModule } from './modules/project-type/project-type.module';
+import { SearchModule } from './modules/search/search.module';
+import { CareReminderModule } from './modules/care-reminder/care-reminder.module';
+import { AiChatModule } from './modules/ai-chat/ai-chat.module';
+import { WechatPushModule } from './modules/wechat-push/wechat-push.module';
+import { ImportModule } from './modules/import/import.module';
+import { DataMaskingInterceptor } from './common/interceptors/data-masking.interceptor';
 
 @Module({
   imports: [
@@ -44,6 +54,20 @@ import { UploadModule } from './modules/upload/upload.module';
     CampaignModule,
     DashboardModule,
     UploadModule,
+    AuditModule,
+    NotificationModule,
+    ProjectTypeModule,
+    SearchModule,
+    CareReminderModule,
+    AiChatModule,
+    WechatPushModule,
+    ImportModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: DataMaskingInterceptor,
+    },
   ],
 })
 export class AppModule {}

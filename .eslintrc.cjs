@@ -15,5 +15,14 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
   },
-  ignorePatterns: ['dist', 'node_modules', '*.js', '*.cjs'],
+  ignorePatterns: ['dist', 'node_modules', '*.js', '*.cjs', '*.vue'],
+  overrides: [
+    {
+      files: ['*.vue'],
+      parser: 'vue-eslint-parser',
+      parserOptions: {
+        parser: '@typescript-eslint/parser',
+      },
+    },
+  ],
 };

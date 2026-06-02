@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 
 export interface AsrResult {
   text: string;
@@ -10,6 +11,7 @@ export interface AsrResult {
 
 @Injectable()
 export class AsrService {
+  private readonly logger = new Logger(AsrService.name);
   private provider: string;
   private apiKey: string;
   private apiSecret: string;
@@ -19,21 +21,43 @@ export class AsrService {
     this.provider = process.env.ASR_PROVIDER || 'mock';
     this.apiKey = process.env.ASR_API_KEY || '';
     this.apiSecret = process.env.ASR_API_SECRET || '';
-    this.baseUrl = process.env.ASR_BASE_URL || 'https://api.deepseek.com';
+    this.baseUrl = process.env.ASR_BASE_URL || '';
   }
 
   async transcribe(audioPath: string): Promise<AsrResult> {
-    switch (this.provider) {
-      case 'whisper':
-        return this.transcribeWithWhisper(audioPath);
-      case 'deepseek':
-        return this.transcribeWithDeepseek(audioPath);
-      case 'mock':
-      default:
-        return this.mockTranscribe(audioPath);
+    this.logger.log(`[ASR] 开始转写, provider: ${this.provider}, path: ${audioPath}`);
+
+    try {
+      let result: AsrResult;
+
+      switch (this.provider) {
+        case 'whisper':
+          result = await this.transcribeWithWhisper(audioPath);
+          break;
+        case 'deepseek':
+          result = await this.transcribeWithDeepseek(audioPath);
+          break;
+        case 'xunfei':
+          result = await this.transcribeWithXunfei(audioPath);
+          break;
+        case 'aliyun':
+          result = await this.transcribeWithAliyun(audioPath);
+          break;
+        case 'mock':
+        default:
+          result = await this.mockTranscribe(audioPath);
+          break;
+      }
+
+      this.logger.log(`[ASR] 转写完成, 文本长度: ${result.text.length}, 时长: ${result.duration}s`);
+      return result;
+    } catch (error: any) {
+      this.logger.error(`[ASR] 转写失败: ${error.message}`);
+      throw error;
     }
   }
 
+  /** OpenAI Whisper API */
   private async transcribeWithWhisper(audioPath: string): Promise<AsrResult> {
     const formData = new FormData();
     const fileBuffer = fs.readFileSync(audioPath);
@@ -41,6 +65,7 @@ export class AsrService {
     formData.append('file', blob, 'audio.mp3');
     formData.append('model', 'whisper-1');
     formData.append('response_format', 'verbose_json');
+    formData.append('language', 'zh');
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -51,37 +76,8 @@ export class AsrService {
     });
 
     if (!response.ok) {
-      throw new Error(`Whisper API error: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return {
-      text: result.text,
-      language: result.language,
-      duration: result.duration,
-      confidence: result.confidence || 0.9,
-    };
-  }
-
-  private async transcribeWithDeepseek(audioPath: string): Promise<AsrResult> {
-    const fileBuffer = fs.readFileSync(audioPath);
-    const base64Audio = fileBuffer.toString('base64');
-
-    const response = await fetch(`${this.baseUrl}/v1/audio/transcriptions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'whisper',
-        file: `data:audio/mpeg;base64,${base64Audio}`,
-        response_format: 'verbose_json',
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`DeepSeek ASR error: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Whisper API error (${response.status}): ${errorText}`);
     }
 
     const result = await response.json();
@@ -93,7 +89,120 @@ export class AsrService {
     };
   }
 
+  /** DeepSeek ASR API */
+  private async transcribeWithDeepseek(audioPath: string): Promise<AsrResult> {
+    const formData = new FormData();
+    const fileBuffer = fs.readFileSync(audioPath);
+    const blob = new Blob([fileBuffer], { type: 'audio/mpeg' });
+    formData.append('file', blob, 'audio.mp3');
+    formData.append('model', 'whisper');
+
+    const baseUrl = this.baseUrl || 'https://api.deepseek.com';
+    const response = await fetch(`${baseUrl}/v1/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`DeepSeek ASR error (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    return {
+      text: result.text,
+      language: result.language || 'zh',
+      duration: result.duration || 0,
+      confidence: 0.9,
+    };
+  }
+
+  /** 讯飞 ASR API */
+  private async transcribeWithXunfei(audioPath: string): Promise<AsrResult> {
+    const fileBuffer = fs.readFileSync(audioPath);
+    const base64Audio = fileBuffer.toString('base64');
+
+    // 讯飞 API 鉴权
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const sign = crypto
+      .createHash('md5')
+      .update(this.apiKey + timestamp + this.apiSecret)
+      .digest('hex');
+
+    const response = await fetch(this.baseUrl || 'https://api.xfyun.cn/v1/service/v1/iat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appid': this.apiKey,
+        'X-CurTime': timestamp,
+        'X-Param': Buffer.from(JSON.stringify({ engine_type: 'sms16k', aue: 'raw' })).toString('base64'),
+        'X-CheckSum': sign,
+      },
+      body: JSON.stringify({
+        audio: base64Audio,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`讯飞 ASR error (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    if (result.code !== '0') {
+      throw new Error(`讯飞 ASR error: ${result.desc}`);
+    }
+
+    return {
+      text: result.data?.result?.map((r: any) => r.ws?.map((w: any) => w.cw?.[0]?.w).join('')).join('') || '',
+      language: 'zh',
+      duration: 0,
+      confidence: 0.85,
+    };
+  }
+
+  /** 阿里云 ASR API */
+  private async transcribeWithAliyun(audioPath: string): Promise<AsrResult> {
+    const fileBuffer = fs.readFileSync(audioPath);
+    const base64Audio = fileBuffer.toString('base64');
+
+    const response = await fetch(this.baseUrl || 'https://nls-gateway.cn-shanghai.aliyuncs.com', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'paraformer-v2',
+        input: {
+          audio: `data:audio/mpeg;base64,${base64Audio}`,
+        },
+        parameters: {
+          language_hints: ['zh'],
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`阿里云 ASR error (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    return {
+      text: result.output?.text || '',
+      language: 'zh',
+      duration: result.output?.duration || 0,
+      confidence: 0.88,
+    };
+  }
+
+  /** Mock 转写（开发环境） */
   private async mockTranscribe(audioPath: string): Promise<AsrResult> {
+    this.logger.log('[ASR] 使用 Mock 模式');
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const mockTexts = [
