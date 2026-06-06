@@ -54,6 +54,81 @@ export class DashboardService {
     };
   }
 
+  /** 管理员 — 客户生命周期漏斗 */
+  async getCustomerFunnel() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // 阶段1：潜客（所有客户）
+    const totalLeads = await this.customerRepo.count();
+
+    // 阶段2：面诊（有会话记录的客户）
+    const customersWithSessions = await this.sessionRepo
+      .createQueryBuilder('s')
+      .select('COUNT(DISTINCT s.customer_id)', 'count')
+      .getRawOne();
+    const consulted = parseInt(customersWithSessions?.count || '0');
+
+    // 阶段3：签约/执行中（有进行中项目的客户）
+    const customersWithProjects = await this.customerRepo
+      .createQueryBuilder('c')
+      .innerJoin('project_timelines', 'pt', 'pt.customer_id = c.id')
+      .select('COUNT(DISTINCT c.id)', 'count')
+      .getRawOne();
+    const signed = parseInt(customersWithProjects?.count || '0');
+
+    // 阶段4：术后（有完成项目的客户）
+    const customersWithCompletedProjects = await this.customerRepo
+      .createQueryBuilder('c')
+      .innerJoin('project_timelines', 'pt', 'pt.customer_id = c.id AND pt.status = :status', { status: 'completed' })
+      .select('COUNT(DISTINCT c.id)', 'count')
+      .getRawOne();
+    const postOp = parseInt(customersWithCompletedProjects?.count || '0');
+
+    // 阶段5：复购（有多个项目的客户）
+    const repeatCustomers = await this.customerRepo
+      .createQueryBuilder('c')
+      .innerJoin('project_timelines', 'pt', 'pt.customer_id = c.id')
+      .groupBy('c.id')
+      .having('COUNT(pt.id) > 1')
+      .select('COUNT(DISTINCT c.id)', 'count')
+      .getRawOne();
+    const repeat = parseInt(repeatCustomers?.count || '0');
+
+    // 阶段6：转介绍（有referred_by的客户）
+    const referrals = await this.customerRepo.count({
+      where: { referredBy: undefined },
+    });
+
+    // 计算转化率
+    const funnel = [
+      { stage: '潜客', count: totalLeads, rate: 100 },
+      { stage: '面诊', count: consulted, rate: totalLeads > 0 ? Math.round((consulted / totalLeads) * 100) : 0 },
+      { stage: '签约', count: signed, rate: consulted > 0 ? Math.round((signed / consulted) * 100) : 0 },
+      { stage: '术后', count: postOp, rate: signed > 0 ? Math.round((postOp / signed) * 100) : 0 },
+      { stage: '复购', count: repeat, rate: postOp > 0 ? Math.round((repeat / postOp) * 100) : 0 },
+      { stage: '转介绍', count: referrals, rate: repeat > 0 ? Math.round((referrals / repeat) * 100) : 0 },
+    ];
+
+    // 本月新增
+    const newThisMonth = await this.customerRepo.count({
+      where: { createdAt: MoreThanOrEqual(monthStart) },
+    });
+
+    return {
+      funnel,
+      summary: {
+        totalLeads,
+        consulted,
+        signed,
+        postOp,
+        repeat,
+        referrals,
+        newThisMonth,
+      },
+    };
+  }
+
   /** 管理员 — 咨询师业绩排行 */
   async getAdminRanking() {
     const consultants = await this.userRepo.find({ where: { role: 'consultant' } });

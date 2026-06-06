@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ConsultantProfile } from './entities/consultant-profile.entity';
 import { User } from '../auth/entities/user.entity';
 import { AuthService } from '../auth/auth.service';
+import { LicenseService } from '../license/license.service';
 import { CreateConsultantDto, UpdateConsultantDto } from './dto/consultant.dto';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class ConsultantService {
     @InjectRepository(User)
     private userRepo: Repository<User>,
     private authService: AuthService,
+    private licenseService: LicenseService,
   ) {}
 
   /** 获取所有咨询师列表（含绩效指标） */
@@ -52,6 +54,10 @@ export class ConsultantService {
 
   /** 新增咨询师 */
   async create(dto: CreateConsultantDto) {
+    // 检查咨询师数量限制
+    const consultantCount = await this.consultantRepo.count();
+    await this.licenseService.checkConsultantLimit(consultantCount);
+
     // 检查用户名是否已存在
     const existingUser = await this.userRepo.findOne({ where: { username: dto.username } });
     if (existingUser) throw new ConflictException('用户名已存在');

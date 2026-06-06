@@ -40,10 +40,10 @@
     <div class="table-card">
       <h3>快捷操作</h3>
       <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap">
-        <el-button @click="$router.push('/customers')">我的客户</el-button>
-        <el-button @click="$router.push('/sessions')">我的会话</el-button>
-        <el-button @click="$router.push('/tasks')">我的任务</el-button>
-        <el-button @click="$router.push('/scripts')">话术库</el-button>
+        <el-button @click="$router.push('/dashboard/customers')">我的客户</el-button>
+        <el-button @click="$router.push('/dashboard/sessions')">我的会话</el-button>
+        <el-button @click="$router.push('/dashboard/tasks')">我的任务</el-button>
+        <el-button @click="$router.push('/dashboard/scripts')">话术库</el-button>
       </div>
     </div>
   </div>

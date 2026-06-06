@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConsultationSession } from './entities/session.entity';
-import { Tag } from '../customer/entities/customer.entity';
+import { Tag, CustomerProfile, Preference } from '../customer/entities/customer.entity';
 import { llmService } from '@tongquetai/ai-engine';
 import { SESSION_ANALYSIS_PROMPT } from '@tongquetai/ai-engine';
+import { LicenseService } from '../license/license.service';
+import { FollowUpPlanService } from '../follow-up-plan/follow-up-plan.service';
 
 @Injectable()
 export class SessionService {
@@ -13,6 +15,12 @@ export class SessionService {
     private sessionRepo: Repository<ConsultationSession>,
     @InjectRepository(Tag)
     private tagRepo: Repository<Tag>,
+    @InjectRepository(CustomerProfile)
+    private customerRepo: Repository<CustomerProfile>,
+    @InjectRepository(Preference)
+    private preferenceRepo: Repository<Preference>,
+    private licenseService: LicenseService,
+    private followUpPlanService: FollowUpPlanService,
   ) {}
 
   async findAll(userRole: string, userId: string) {
@@ -112,9 +120,24 @@ export class SessionService {
       return this.sessionRepo.findOne({ where: { id: sessionId } });
     }
 
+    // 检查 AI 分析功能是否可用
+    const aiEnabled = await this.licenseService.isFeatureEnabled('aiAnalysis');
+    if (!aiEnabled) {
+      await this.sessionRepo.update(sessionId, {
+        status: 'completed',
+        summary: '（基础版）AI 分析功能需要专业版或旗舰版。',
+      });
+      return this.sessionRepo.findOne({ where: { id: sessionId } });
+    }
+
     try {
-      // 构建 prompt
-      const prompt = SESSION_ANALYSIS_PROMPT.replace('{{transcript}}', session.transcript);
+      // 获取客户画像信息
+      const customerProfile = await this.buildCustomerProfile(session.customerId);
+
+      // 构建 prompt（包含客户画像）
+      const prompt = SESSION_ANALYSIS_PROMPT
+        .replace('{{customerProfile}}', customerProfile)
+        .replace('{{transcript}}', session.transcript);
 
       // 调用 LLM
       const response = await llmService.generate({ prompt });
@@ -137,7 +160,18 @@ export class SessionService {
         followUpStrategy: analysis.followUpStrategy || {},
       } as any);
 
-      return this.sessionRepo.findOne({ where: { id: sessionId } });
+      // 自动创建跟进策略草稿
+      const updatedSession = await this.sessionRepo.findOne({ where: { id: sessionId } });
+      if (updatedSession) {
+        try {
+          await this.followUpPlanService.createFromSession(updatedSession);
+          console.log(`[Session] 已为会话 ${sessionId} 创建跟进策略草稿`);
+        } catch (err: any) {
+          console.error('[Session] 创建跟进策略草稿失败:', err.message);
+        }
+      }
+
+      return updatedSession;
     } catch (error: any) {
       console.error('[Session] LLM 分析失败:', error.message);
       // 降级为关键词提取
@@ -150,45 +184,57 @@ export class SessionService {
    * 解析 LLM 返回的分析结果
    */
   private parseAnalysisResponse(content: string): any {
+    console.log('[Session] 解析 AI 响应，长度:', content.length);
+    console.log('[Session] 响应前100字符:', content.substring(0, 100));
+
     try {
       // 尝试直接解析 JSON
-      return JSON.parse(content);
-    } catch {
-      // 尝试从 markdown 代码块中提取 JSON
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[1].trim());
-        } catch {
-          // 忽略
-        }
-      }
-
-      // 尝试从内容中查找 JSON 对象
-      const objectMatch = content.match(/\{[\s\S]*\}/);
-      if (objectMatch) {
-        try {
-          return JSON.parse(objectMatch[0]);
-        } catch {
-          // 忽略
-        }
-      }
-
-      // 解析失败，返回默认结构
-      return {
-        summary: content.substring(0, 200),
-        keyPoints: [],
-        blockers: [],
-        decisionMakers: [],
-        tags: [],
-        followUpStrategy: {
-          summary: content.substring(0, 200),
-          talkingPoints: [],
-          bestFollowUpTime: '面诊后24小时内',
-          caseReferences: [],
-        },
-      };
+      const result = JSON.parse(content);
+      console.log('[Session] JSON 解析成功，talkingPoints 数量:', result.followUpStrategy?.talkingPoints?.length || 0);
+      return result;
+    } catch (e: any) {
+      console.log('[Session] JSON 直接解析失败:', e.message);
     }
+
+    // 尝试从 markdown 代码块中提取 JSON
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[1].trim());
+        console.log('[Session] 代码块 JSON 解析成功');
+        return result;
+      } catch {
+        // 忽略
+      }
+    }
+
+    // 尝试从内容中查找 JSON 对象
+    const objectMatch = content.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      try {
+        const result = JSON.parse(objectMatch[0]);
+        console.log('[Session] JSON 对象解析成功');
+        return result;
+      } catch {
+        // 忽略
+      }
+    }
+
+    // 解析失败，返回默认结构
+    console.log('[Session] 所有解析方式失败，返回默认结构');
+    return {
+      summary: content.substring(0, 200),
+      keyPoints: [],
+      blockers: [],
+      decisionMakers: [],
+      tags: [],
+      followUpStrategy: {
+        summary: content.substring(0, 200),
+        talkingPoints: [],
+        bestFollowUpTime: '面诊后24小时内',
+        caseReferences: [],
+      },
+    };
   }
 
   /**
@@ -205,6 +251,45 @@ export class SessionService {
         await this.tagRepo.save(newTag);
       }
     }
+  }
+
+  /**
+   * 构建客户画像信息（用于 AI 分析）
+   */
+  private async buildCustomerProfile(customerId: string): Promise<string> {
+    const customer = await this.customerRepo.findOne({
+      where: { id: customerId },
+    });
+
+    if (!customer) return '无客户信息';
+
+    const tags = await this.tagRepo.find({ where: { customerId } });
+    const preferences = await this.preferenceRepo.find({ where: { customerId } });
+
+    const parts: string[] = [];
+
+    // 基本信息
+    parts.push(`客户姓名：${customer.name}`);
+    if (customer.budgetSensitivity) {
+      parts.push(`预算敏感度：${customer.budgetSensitivity}`);
+    }
+    if (customer.source) {
+      parts.push(`来源：${customer.source}`);
+    }
+
+    // 标签
+    if (tags.length > 0) {
+      const tagStr = tags.map(t => `${t.category}:${t.value}`).join('、');
+      parts.push(`标签：${tagStr}`);
+    }
+
+    // 备忘录
+    if (preferences.length > 0) {
+      const prefStr = preferences.map(p => `[${p.category}]${p.content}`).join('；');
+      parts.push(`备忘录：${prefStr}`);
+    }
+
+    return parts.join('\n');
   }
 
   /**

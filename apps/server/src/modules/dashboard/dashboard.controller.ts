@@ -45,6 +45,14 @@ export class DashboardController {
     return this.dashboardService.getAdminAlerts();
   }
 
+  @Get('admin/dashboard/funnel')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: '管理员 — 客户生命周期漏斗' })
+  getCustomerFunnel() {
+    return this.dashboardService.getCustomerFunnel();
+  }
+
   @Get('consultant/dashboard/metrics')
   @Roles('consultant')
   @UseGuards(RolesGuard)

@@ -84,7 +84,7 @@
       <div style="margin-top:8px">
         <p v-if="customer.referrer">
           <strong>介绍人：</strong>
-          <el-button type="primary" link @click="$router.push(`/customers/${customer.referrer.id}`)">
+          <el-button type="primary" link @click="$router.push(`/dashboard/customers/${customer.referrer.id}`)">
             {{ customer.referrer.name }}
           </el-button>
         </p>
@@ -95,7 +95,7 @@
             v-for="ref in customer.referrals"
             :key="ref.id"
             style="margin:4px; cursor:pointer"
-            @click="$router.push(`/customers/${ref.id}`)"
+            @click="$router.push(`/dashboard/customers/${ref.id}`)"
           >
             {{ ref.name }}
           </el-tag>
@@ -133,10 +133,29 @@
     <div class="table-card">
       <h3>快速操作</h3>
       <div style="display:flex; gap:12px; margin-top:12px">
-        <el-button type="primary" @click="createSession">创建面诊会话</el-button>
+        <el-button type="primary" @click="showSessionDialog = true">创建面诊会话</el-button>
         <el-button type="success" @click="generateTasks">生成跟进任务</el-button>
       </div>
     </div>
+
+    <!-- 创建会话弹窗 -->
+    <el-dialog title="创建面诊会话" v-model="showSessionDialog" width="600px">
+      <p style="color:#909399; margin-bottom:16px">
+        输入面诊转写文本，系统将自动进行 AI 分析并生成跟进策略。
+      </p>
+      <el-input
+        v-model="sessionTranscript"
+        type="textarea"
+        :rows="10"
+        placeholder="请输入面诊转写文本...&#10;&#10;示例：&#10;咨询师：您好王姐，今天来是想了解哪方面的项目？&#10;客户：我想做热玛吉，但是听说很疼..."
+      />
+      <template #footer>
+        <el-button @click="showSessionDialog = false">取消</el-button>
+        <el-button type="primary" @click="createSessionWithTranscript" :loading="creatingSession">
+          创建并分析
+        </el-button>
+      </template>
+    </el-dialog>
 
     <!-- 添加标签弹窗 -->
     <el-dialog title="添加标签" v-model="showTagDialog" width="400px">
@@ -197,6 +216,9 @@ const customer = ref<any>(null);
 const showTagDialog = ref(false);
 const showPrefDialog = ref(false);
 const showProjectDialog = ref(false);
+const showSessionDialog = ref(false);
+const creatingSession = ref(false);
+const sessionTranscript = ref('');
 
 const tagForm = ref({ category: '', value: '' });
 const prefForm = ref({ category: '', content: '', importance: 'normal' });
@@ -262,9 +284,29 @@ async function addProject() {
   fetchData();
 }
 
-async function createSession() {
-  await request.post('/sessions', { customerId: route.params.id });
-  ElMessage.success('面诊会话已创建');
+async function createSessionWithTranscript() {
+  if (!sessionTranscript.value.trim()) {
+    ElMessage.warning('请输入面诊转写文本');
+    return;
+  }
+
+  creatingSession.value = true;
+  try {
+    const res: any = await request.post('/sessions', {
+      customerId: route.params.id,
+      transcript: sessionTranscript.value,
+    });
+    ElMessage.success('面诊会话已创建，AI 正在分析...');
+    showSessionDialog.value = false;
+    sessionTranscript.value = '';
+    // 跳转到会话详情页
+    if (res?.id) {
+      window.location.href = `/dashboard/sessions/${res.id}`;
+    }
+  } catch (err: any) {
+    ElMessage.error('创建失败：' + (err?.message || '未知错误'));
+  }
+  creatingSession.value = false;
 }
 
 async function generateTasks() {

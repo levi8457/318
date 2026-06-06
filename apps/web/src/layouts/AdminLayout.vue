@@ -34,8 +34,14 @@
         <el-menu-item index="/admin/campaigns">
           <span>📢 营销中心</span>
         </el-menu-item>
+        <el-menu-item index="/admin/follow-up-plans">
+          <span>🎯 跟进策略</span>
+        </el-menu-item>
         <el-menu-item index="/admin/audit-logs">
           <span>📝 操作日志</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/subscription">
+          <span>💳 订阅管理</span>
         </el-menu-item>
         <el-menu-item index="/admin/settings">
           <span>⚙️ 系统设置</span>

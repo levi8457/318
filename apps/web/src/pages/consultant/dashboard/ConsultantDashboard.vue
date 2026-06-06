@@ -69,7 +69,7 @@
       <h3>最近活跃客户</h3>
       <el-row :gutter="16" style="margin-top: 12px">
         <el-col v-for="c in recentCustomers" :key="c.customerId" :xs="12" :sm="8" :md="6" style="margin-bottom:12px">
-          <el-card shadow="hover" @click="$router.push(`/customers/${c.customerId}`)" style="cursor:pointer">
+          <el-card shadow="hover" @click="$router.push(`/dashboard/customers/${c.customerId}`)" style="cursor:pointer">
             <div style="font-weight:600; margin-bottom:4px">{{ c.customerName }}</div>
             <div style="font-size:12px; color:#909399">{{ c.lastActivityType }} · {{ new Date(c.lastActivity).toLocaleDateString() }}</div>
           </el-card>

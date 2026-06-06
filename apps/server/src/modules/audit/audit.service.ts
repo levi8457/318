@@ -56,7 +56,7 @@ export class AuditService {
     if (startDate) qb.andWhere('log.created_at >= :startDate', { startDate });
     if (endDate) qb.andWhere('log.created_at <= :endDate', { endDate });
 
-    qb.orderBy('log.created_at', 'DESC');
+    qb.orderBy('log.createdAt', 'DESC');
     qb.skip((page - 1) * pageSize).take(pageSize);
 
     const [items, total] = await qb.getManyAndCount();

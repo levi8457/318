@@ -12,5 +12,6 @@ import { CareReminderController } from './care-reminder.controller';
   ],
   controllers: [CareReminderController],
   providers: [CareReminderService],
+  exports: [CareReminderService],
 })
 export class CareReminderModule {}

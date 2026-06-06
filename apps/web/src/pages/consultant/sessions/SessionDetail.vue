@@ -26,7 +26,7 @@
         <!-- 待上传状态提示 -->
         <div v-if="session.status === 'pending'" class="pending-banner">
           <el-icon><Upload /></el-icon>
-          <span>请上传面诊录音音频，系统将自动转写并生成 AI 分析</span>
+          <span>请上传面诊录音音频或手动输入转写文本</span>
         </div>
 
         <!-- 转写中状态提示 -->
@@ -36,7 +36,7 @@
           <el-button size="small" @click="fetchData">刷新状态</el-button>
         </div>
 
-        <!-- 上传区域 - pending 或 failed 状态显示 -->
+        <!-- 上传区域 -->
         <div class="upload-area" v-if="session.status === 'pending' || session.status === 'failed'">
           <el-upload
             ref="uploadRef"
@@ -66,19 +66,19 @@
         </div>
 
         <!-- 转写文本 -->
-        <div v-if="session.transcript" style="margin-top:16px">
+        <div style="margin-top:16px">
           <h4 style="margin-bottom:8px">转写文本</h4>
           <el-input
             type="textarea"
             v-model="transcriptText"
             :rows="6"
-            placeholder="转写文本将显示在这里..."
+            placeholder="输入或粘贴面诊转写文本..."
           />
           <div style="margin-top:8px; display:flex; gap:8px">
-            <el-button @click="analyzeSession" type="primary" :loading="analyzing">
+            <el-button @click="analyzeSession" type="primary" :loading="analyzing" :disabled="!transcriptText.trim()">
               AI 分析
             </el-button>
-            <el-button @click="updateTranscript" type="warning" :loading="analyzing">
+            <el-button @click="updateTranscript" type="warning" :loading="analyzing" v-if="session.transcript">
               更新文本并重新分析
             </el-button>
           </div>
@@ -92,14 +92,13 @@
       </div>
 
       <!-- 客户标签 -->
-      <div class="table-card">
+      <div class="table-card" v-if="customerTags.length">
         <h3>客户标签</h3>
-        <div v-if="customerTags.length" style="margin-top:8px">
+        <div style="margin-top:8px">
           <el-tag v-for="tag in customerTags" :key="tag.id" style="margin:4px" type="info">
             [{{ tag.category }}] {{ tag.value }}
           </el-tag>
         </div>
-        <el-empty v-else description="暂无标签" :image-size="60" />
       </div>
 
       <!-- 核心诉求 -->
@@ -132,42 +131,139 @@
         </div>
       </div>
 
-      <!-- 决策人 -->
-      <div class="table-card" v-if="session.decisionMakers?.length">
-        <h3>决策人</h3>
-        <div style="margin-top:8px">
-          <el-tag v-for="dm in session.decisionMakers" :key="dm" style="margin:4px">{{ dm }}</el-tag>
+      <!-- 跟进策略（集成在页面内） -->
+      <div class="table-card" v-if="followUpPlan">
+        <div class="section-header">
+          <h3>跟进策略</h3>
+          <el-tag :type="planStatusType[followUpPlan.status] || 'info'" size="small">
+            {{ planStatusMap[followUpPlan.status] || followUpPlan.status }}
+          </el-tag>
+        </div>
+
+        <!-- 跟进话术（可编辑） -->
+        <div style="margin-top:16px">
+          <div class="section-header">
+            <h4>跟进话术</h4>
+            <el-button v-if="isPlanEditable" size="small" type="primary" @click="addTalkingPoint">
+              + 添加话术
+            </el-button>
+          </div>
+          <div v-for="(tp, i) in talkingPoints" :key="i" class="talking-point-item">
+            <div class="tp-content">
+              <el-input
+                v-if="isPlanEditable"
+                v-model="talkingPoints[i]"
+                type="textarea"
+                :rows="2"
+              />
+              <p v-else>{{ tp }}</p>
+            </div>
+            <el-button
+              v-if="isPlanEditable"
+              type="danger"
+              link
+              size="small"
+              @click="talkingPoints.splice(i, 1)"
+            >
+              删除
+            </el-button>
+            <el-button
+              v-else
+              type="primary"
+              link
+              size="small"
+              @click="copyText(tp)"
+            >
+              复制
+            </el-button>
+          </div>
+          <el-empty v-if="!talkingPoints.length" description="暂无话术" :image-size="60" />
+        </div>
+
+        <!-- 最佳跟进时间 -->
+        <div style="margin-top:16px">
+          <h4>最佳跟进时间</h4>
+          <el-input
+            v-if="isPlanEditable"
+            v-model="bestFollowUpTime"
+            placeholder="如：面诊后24小时内，上午10:00-11:00"
+            style="margin-top:8px"
+          />
+          <p v-else style="margin-top:8px; color:#606266">{{ bestFollowUpTime || '-' }}</p>
+        </div>
+
+        <!-- 咨询师备注 -->
+        <div style="margin-top:16px">
+          <h4>咨询师备注</h4>
+          <el-input
+            v-if="isPlanEditable"
+            v-model="consultantNotes"
+            type="textarea"
+            :rows="3"
+            placeholder="补充你的判断和调整..."
+            style="margin-top:8px"
+          />
+          <p v-else style="margin-top:8px; color:#606266">{{ consultantNotes || '-' }}</p>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div style="margin-top:16px; display:flex; gap:12px" v-if="isPlanEditable">
+          <el-button type="primary" @click="savePlan" :loading="savingPlan">保存修改</el-button>
+          <el-button type="success" @click="confirmPlan" :loading="savingPlan" v-if="followUpPlan.status === 'draft'">
+            确认策略
+          </el-button>
+        </div>
+
+        <!-- 跟进记录 -->
+        <div style="margin-top:24px">
+          <div class="section-header">
+            <h4>跟进记录</h4>
+            <el-button
+              v-if="followUpPlan.status === 'confirmed' || followUpPlan.status === 'executing'"
+              size="small"
+              type="primary"
+              @click="showFollowUpDialog = true"
+            >
+              + 记录跟进
+            </el-button>
+          </div>
+
+          <el-timeline v-if="followUpPlan.followUpRecords?.length" style="margin-top:16px">
+            <el-timeline-item
+              v-for="(record, i) in followUpPlan.followUpRecords"
+              :key="i"
+              :timestamp="new Date(record.contactedAt).toLocaleString()"
+              placement="top"
+            >
+              <div class="record-item">
+                <div class="record-header">
+                  <el-tag size="small">{{ methodMap[record.method] || record.method }}</el-tag>
+                  <el-tag size="small" :type="resultType[record.result] || 'info'">
+                    {{ resultMap[record.result] || record.result }}
+                  </el-tag>
+                </div>
+                <p v-if="record.notes" style="margin-top:4px; color:#606266">{{ record.notes }}</p>
+                <p v-if="record.nextFollowUpDate" style="margin-top:4px; color:#909399; font-size:12px">
+                  下次跟进：{{ new Date(record.nextFollowUpDate).toLocaleDateString() }}
+                </p>
+              </div>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else description="暂无跟进记录" :image-size="60" />
+        </div>
+
+        <!-- 完成/取消策略 -->
+        <div style="margin-top:16px; display:flex; gap:12px" v-if="followUpPlan.status === 'executing' || followUpPlan.status === 'confirmed'">
+          <el-button type="success" @click="completePlan" :loading="completingPlan">标记完成</el-button>
+          <el-button type="danger" plain @click="cancelPlan" :loading="cancellingPlan">取消策略</el-button>
         </div>
       </div>
 
-      <!-- AI 跟进策略 -->
-      <div class="table-card" v-if="session.followUpStrategy?.summary">
-        <h3>AI 跟进策略</h3>
-        <div class="strategy-box">
-          <p class="strategy-summary">{{ session.followUpStrategy.summary }}</p>
-
-          <div v-if="session.followUpStrategy.talkingPoints?.length" style="margin-top:16px">
-            <h4>推荐跟进话术</h4>
-            <div v-for="(tp, i) in session.followUpStrategy.talkingPoints" :key="i" class="talking-point">
-              <p>{{ tp }}</p>
-              <el-button size="small" type="primary" @click="copyText(tp)">复制话术</el-button>
-            </div>
-          </div>
-
-          <div v-if="session.followUpStrategy.bestFollowUpTime" style="margin-top:12px">
-            <strong>最佳跟进时间：</strong>{{ session.followUpStrategy.bestFollowUpTime }}
-          </div>
-
-          <div v-if="session.followUpStrategy.caseReferences?.length" style="margin-top:12px">
-            <strong>参考案例：</strong>
-            <el-tag v-for="ref in session.followUpStrategy.caseReferences" :key="ref" size="small" style="margin:4px">
-              {{ ref }}
-            </el-tag>
-          </div>
-
-          <div v-if="session.followUpStrategy.templateName" style="margin-top:12px; color:#909399">
-            参考策略模板：{{ session.followUpStrategy.templateName }}
-          </div>
+      <!-- 无跟进策略时的提示 -->
+      <div class="table-card" v-else-if="session.status === 'completed' && session.summary">
+        <div style="text-align:center; padding:24px">
+          <p style="color:#909399; margin-bottom:12px">AI 分析已完成，跟进策略正在生成中...</p>
+          <el-button type="primary" @click="fetchData">刷新状态</el-button>
         </div>
       </div>
     </template>
@@ -176,11 +272,44 @@
       <p style="color:#909399">会话不存在或已被删除</p>
       <el-button type="primary" style="margin-top:16px" @click="$router.back()">返回列表</el-button>
     </div>
+
+    <!-- 记录跟进弹窗 -->
+    <el-dialog title="记录跟进" v-model="showFollowUpDialog" width="500px">
+      <el-form :model="followUpForm" label-width="80px">
+        <el-form-item label="联系方式">
+          <el-select v-model="followUpForm.method" style="width:100%">
+            <el-option label="微信" value="wechat" />
+            <el-option label="电话" value="phone" />
+            <el-option label="到院" value="visit" />
+            <el-option label="短信" value="sms" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="结果">
+          <el-select v-model="followUpForm.result" style="width:100%">
+            <el-option label="已接通/已回复" value="replied" />
+            <el-option label="未接通/未回复" value="no_reply" />
+            <el-option label="已预约到院" value="booked" />
+            <el-option label="已成交" value="converted" />
+            <el-option label="暂无意向" value="not_interested" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="followUpForm.notes" type="textarea" :rows="3" placeholder="跟进详情..." />
+        </el-form-item>
+        <el-form-item label="下次跟进">
+          <el-date-picker v-model="followUpForm.nextFollowUpDate" type="date" style="width:100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showFollowUpDialog = false">取消</el-button>
+        <el-button type="primary" @click="addFollowUpRecord" :loading="savingFollowUp">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Loading, Upload } from '@element-plus/icons-vue';
@@ -193,6 +322,7 @@ const token = userStore.token || '';
 
 const session = ref<any>(null);
 const customerTags = ref<any[]>([]);
+const followUpPlan = ref<any>(null);
 const transcriptText = ref('');
 const uploading = ref(false);
 const uploadProgress = ref(0);
@@ -200,6 +330,22 @@ const analyzing = ref(false);
 const loading = ref(true);
 const error = ref('');
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+// 跟进策略编辑字段
+const talkingPoints = ref<string[]>([]);
+const bestFollowUpTime = ref('');
+const consultantNotes = ref('');
+const savingPlan = ref(false);
+const completingPlan = ref(false);
+const cancellingPlan = ref(false);
+const showFollowUpDialog = ref(false);
+const savingFollowUp = ref(false);
+const followUpForm = ref({
+  method: 'wechat',
+  result: 'replied',
+  notes: '',
+  nextFollowUpDate: null as any,
+});
 
 const statusMap: Record<string, string> = {
   pending: '待处理',
@@ -237,6 +383,49 @@ const blockerType: Record<string, string> = {
   other: 'info',
 };
 
+const planStatusMap: Record<string, string> = {
+  draft: '草稿',
+  confirmed: '已确认',
+  executing: '执行中',
+  completed: '已完成',
+  cancelled: '已取消',
+};
+
+const planStatusType: Record<string, string> = {
+  draft: 'warning',
+  confirmed: 'primary',
+  executing: '',
+  completed: 'success',
+  cancelled: 'info',
+};
+
+const methodMap: Record<string, string> = {
+  wechat: '微信',
+  phone: '电话',
+  visit: '到院',
+  sms: '短信',
+};
+
+const resultMap: Record<string, string> = {
+  replied: '已接通',
+  no_reply: '未接通',
+  booked: '已预约',
+  converted: '已成交',
+  not_interested: '暂无意向',
+};
+
+const resultType: Record<string, string> = {
+  replied: 'success',
+  no_reply: 'warning',
+  booked: 'primary',
+  converted: 'success',
+  not_interested: 'info',
+};
+
+const isPlanEditable = computed(() => {
+  return followUpPlan.value && (followUpPlan.value.status === 'draft' || followUpPlan.value.status === 'confirmed');
+});
+
 async function fetchData() {
   loading.value = true;
   error.value = '';
@@ -244,6 +433,7 @@ async function fetchData() {
     session.value = await request.get(`/sessions/${route.params.id}`);
     transcriptText.value = session.value?.transcript || '';
 
+    // 获取客户标签
     if (session.value?.customerId) {
       try {
         const customerDetail: any = await request.get(`/customers/${session.value.customerId}`);
@@ -251,6 +441,11 @@ async function fetchData() {
       } catch {
         customerTags.value = [];
       }
+    }
+
+    // 获取关联的跟进策略
+    if (session.value?.status === 'completed') {
+      await fetchFollowUpPlan();
     }
 
     // 如果正在转写，启动轮询
@@ -261,6 +456,22 @@ async function fetchData() {
     error.value = e.message || '加载失败';
   } finally {
     loading.value = false;
+  }
+}
+
+async function fetchFollowUpPlan() {
+  try {
+    const res: any = await request.get('/follow-up-plans', {
+      params: { sessionId: route.params.id },
+    });
+    if (res && res.length > 0) {
+      followUpPlan.value = res[0];
+      talkingPoints.value = [...(followUpPlan.value.talkingPoints || [])];
+      bestFollowUpTime.value = followUpPlan.value.bestFollowUpTime || '';
+      consultantNotes.value = followUpPlan.value.consultantNotes || '';
+    }
+  } catch {
+    followUpPlan.value = null;
   }
 }
 
@@ -275,6 +486,7 @@ function startPolling() {
         stopPolling();
         if (res?.status === 'completed') {
           ElMessage.success('转写完成！');
+          await fetchFollowUpPlan();
         } else if (res?.status === 'failed') {
           ElMessage.error('转写失败，请重试');
         }
@@ -302,10 +514,9 @@ function beforeUpload(file: File) {
   return true;
 }
 
-function handleUploadSuccess(response: any) {
+function handleUploadSuccess() {
   uploading.value = false;
   ElMessage.success('音频上传成功！正在转写中...');
-  // 刷新数据并开始轮询
   fetchData();
 }
 
@@ -319,8 +530,19 @@ function handleUploadProgress(event: any) {
 }
 
 async function analyzeSession() {
+  if (!transcriptText.value.trim()) {
+    ElMessage.warning('请输入转写文本');
+    return;
+  }
+
   analyzing.value = true;
   try {
+    // 如果会话还没有转写文本，先更新
+    if (!session.value.transcript) {
+      await request.put(`/sessions/${route.params.id}/transcript`, {
+        transcript: transcriptText.value,
+      });
+    }
     await request.post(`/sessions/${route.params.id}/analyze`);
     ElMessage.success('AI 分析完成');
     setTimeout(fetchData, 1000);
@@ -350,6 +572,94 @@ async function updateTranscript() {
   } finally {
     analyzing.value = false;
   }
+}
+
+// 跟进策略操作
+function addTalkingPoint() {
+  talkingPoints.value.push('');
+}
+
+async function savePlan() {
+  if (!followUpPlan.value) return;
+  savingPlan.value = true;
+  try {
+    await request.put(`/follow-up-plans/${followUpPlan.value.id}`, {
+      talkingPoints: talkingPoints.value.filter(t => t.trim()),
+      bestFollowUpTime: bestFollowUpTime.value,
+      consultantNotes: consultantNotes.value,
+    });
+    ElMessage.success('保存成功');
+    await fetchFollowUpPlan();
+  } catch {
+    ElMessage.error('保存失败');
+  }
+  savingPlan.value = false;
+}
+
+async function confirmPlan() {
+  if (!followUpPlan.value) return;
+  savingPlan.value = true;
+  try {
+    await request.post(`/follow-up-plans/${followUpPlan.value.id}/confirm`, {
+      talkingPoints: talkingPoints.value.filter(t => t.trim()),
+      bestFollowUpTime: bestFollowUpTime.value,
+      consultantNotes: consultantNotes.value,
+    });
+    ElMessage.success('策略已确认');
+    await fetchFollowUpPlan();
+  } catch {
+    ElMessage.error('确认失败');
+  }
+  savingPlan.value = false;
+}
+
+async function addFollowUpRecord() {
+  if (!followUpPlan.value) return;
+  savingFollowUp.value = true;
+  try {
+    const record: any = {
+      method: followUpForm.value.method,
+      result: followUpForm.value.result,
+      notes: followUpForm.value.notes,
+    };
+    if (followUpForm.value.nextFollowUpDate) {
+      record.nextFollowUpDate = new Date(followUpForm.value.nextFollowUpDate).toISOString();
+    }
+    await request.post(`/follow-up-plans/${followUpPlan.value.id}/follow-up`, record);
+    ElMessage.success('跟进记录已添加');
+    showFollowUpDialog.value = false;
+    followUpForm.value = { method: 'wechat', result: 'replied', notes: '', nextFollowUpDate: null };
+    await fetchFollowUpPlan();
+  } catch {
+    ElMessage.error('添加失败');
+  }
+  savingFollowUp.value = false;
+}
+
+async function completePlan() {
+  if (!followUpPlan.value) return;
+  completingPlan.value = true;
+  try {
+    await request.post(`/follow-up-plans/${followUpPlan.value.id}/complete`);
+    ElMessage.success('策略已完成');
+    await fetchFollowUpPlan();
+  } catch {
+    ElMessage.error('操作失败');
+  }
+  completingPlan.value = false;
+}
+
+async function cancelPlan() {
+  if (!followUpPlan.value) return;
+  cancellingPlan.value = true;
+  try {
+    await request.post(`/follow-up-plans/${followUpPlan.value.id}/cancel`);
+    ElMessage.success('策略已取消');
+    await fetchFollowUpPlan();
+  } catch {
+    ElMessage.error('操作失败');
+  }
+  cancellingPlan.value = false;
 }
 
 function copyText(text: string) {
@@ -398,6 +708,12 @@ onUnmounted(() => {
   color: #1890ff;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .blocker-item {
   padding: 12px 0;
   border-bottom: 1px solid #eee;
@@ -421,29 +737,25 @@ onUnmounted(() => {
   border-left: 3px solid #67c23a;
 }
 
-.strategy-box {
-  background: #f0f9eb;
-  border-radius: 8px;
-  padding: 16px;
-  margin-top: 8px;
-}
-
-.strategy-summary {
-  font-weight: 600;
-  line-height: 1.8;
-}
-
-.talking-point {
-  padding: 8px 0;
-  border-bottom: 1px dashed #ddd;
+.talking-point-item {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
 }
 
-.talking-point p {
+.tp-content {
   flex: 1;
-  margin: 0;
+}
+
+.record-item {
+  padding: 8px 0;
+}
+
+.record-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 </style>

@@ -10,22 +10,25 @@
         <el-menu-item index="/dashboard">
           <span>📊 仪表盘</span>
         </el-menu-item>
-        <el-menu-item index="/customers">
+        <el-menu-item index="/dashboard/customers">
           <span>👥 我的客户</span>
         </el-menu-item>
-        <el-menu-item index="/sessions">
+        <el-menu-item index="/dashboard/sessions">
           <span>📞 我的会话</span>
         </el-menu-item>
-        <el-menu-item index="/tasks">
+        <el-menu-item index="/dashboard/tasks">
           <span>📋 我的任务</span>
         </el-menu-item>
-        <el-menu-item index="/scripts">
+        <el-menu-item index="/dashboard/follow-up-plans">
+          <span>🎯 跟进策略</span>
+        </el-menu-item>
+        <el-menu-item index="/dashboard/scripts">
           <span>💬 话术库</span>
         </el-menu-item>
-        <el-menu-item index="/campaigns">
+        <el-menu-item index="/dashboard/campaigns">
           <span>📢 营销执行</span>
         </el-menu-item>
-        <el-menu-item index="/settings">
+        <el-menu-item index="/dashboard/settings">
           <span>⚙️ 个人设置</span>
         </el-menu-item>
       </el-menu>

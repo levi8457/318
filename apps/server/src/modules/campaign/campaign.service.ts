@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { MarketingCampaign, TargetedOutreach } from './entities/campaign.entity';
 import { CustomerProfile } from '../customer/entities/customer.entity';
 import { llmService } from '@tongquetai/ai-engine';
+import { LicenseService } from '../license/license.service';
 
 @Injectable()
 export class CampaignService {
@@ -14,6 +15,7 @@ export class CampaignService {
     private outreachRepo: Repository<TargetedOutreach>,
     @InjectRepository(CustomerProfile)
     private customerRepo: Repository<CustomerProfile>,
+    private licenseService: LicenseService,
   ) {}
 
   async findAll(query?: { keyword?: string; status?: string }) {
@@ -61,6 +63,9 @@ export class CampaignService {
 
   /** AI 匹配目标客户 */
   async matchCustomers(campaignId: string) {
+    // 检查精准营销功能
+    await this.licenseService.checkFeature('precisionMarketing');
+
     const campaign = await this.findOne(campaignId);
 
     // 查询所有活跃客户

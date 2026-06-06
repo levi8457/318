@@ -31,6 +31,11 @@
       </div>
     </div>
 
+    <!-- 客户生命周期漏斗 -->
+    <div class="table-card">
+      <CustomerFunnel />
+    </div>
+
     <!-- 咨询师业绩排行 -->
     <div class="table-card">
       <h3>咨询师业绩排行</h3>
@@ -78,6 +83,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import request from '@/api/request';
+import CustomerFunnel from '@/components/CustomerFunnel.vue';
 
 const metricCards = ref<any[]>([]);
 const ranking = ref<any[]>([]);

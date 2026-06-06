@@ -141,7 +141,7 @@ function showCreateDialog() {
 function goDetail(rowOrId: any) {
   const id = typeof rowOrId === 'string' ? rowOrId : rowOrId?.id;
   if (id) {
-    router.push(`/customers/${id}`);
+    router.push(`/dashboard/customers/${id}`);
   }
 }
 
