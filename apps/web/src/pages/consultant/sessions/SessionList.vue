@@ -29,8 +29,8 @@
         <el-table-column prop="duration" label="时长" width="80">
           <template #default="{ row }">{{ row.duration ? `${row.duration}s` : '-' }}</template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="160">
-          <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString() }}</template>
+        <el-table-column prop="createdAt" label="创建时间" width="120">
+          <template #default="{ row }">{{ row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '-' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">

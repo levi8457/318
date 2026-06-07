@@ -55,12 +55,16 @@ export class TaskService {
   }
 
   /** 根据项目自动生成 SOP 任务 */
-  async generateTasks(customerId: string, consultantId: string, projectType?: string) {
+  async generateTasks(customerId: string, consultantId: string, projectType?: string, procedureDate?: string) {
     const templates = this.getDefaultSOPTemplates(projectType);
     const tasks: TaskReminder[] = [];
 
+    // 使用传入的手术日期，或默认为今天
+    const baseDate = procedureDate ? new Date(procedureDate) : new Date();
+    baseDate.setHours(0, 0, 0, 0);
+
     for (const tpl of templates) {
-      const triggerDate = new Date();
+      const triggerDate = new Date(baseDate);
       triggerDate.setDate(triggerDate.getDate() + tpl.dayOffset);
 
       const task = await this.taskRepo.save({

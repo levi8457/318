@@ -51,11 +51,16 @@ export class LLMService {
     this.baseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
     this.timeout = 30000;
     this.maxRetries = 3;
+
+    // 启动时日志
+    console.log(`[LLM] 初始化 - API Key: ${this.apiKey ? this.apiKey.substring(0, 8) + '...' : '未配置'}`);
+    console.log(`[LLM] Base URL: ${this.baseUrl}`);
+    console.log(`[LLM] 是否真实模式: ${this.isRealMode}`);
   }
 
   /** 是否有真实 API Key */
   private get isRealMode(): boolean {
-    return !!this.apiKey && this.apiKey !== 'your_api_key' && this.apiKey !== '';
+    return !!this.apiKey && this.apiKey !== 'your_api_key' && this.apiKey !== '' && this.apiKey.startsWith('sk-');
   }
 
   /**
@@ -247,33 +252,63 @@ export class LLMService {
     // 最高优先级：会话分析（包含"面诊会话"或"转写文本"或"客户画像"）
     if (prompt.includes('面诊会话') || prompt.includes('转写文本') || prompt.includes('客户画像信息')) {
       return `{
-  "summary": "客户到院咨询面部抗衰项目，主要诉求是改善面部松弛和法令纹。客户对热玛吉项目有一定了解，但对疼痛感有顾虑。建议重点解决疼痛顾虑，展示舒适化治疗方案。",
+  "summary": "客户到院咨询面部抗衰项目，主要诉求是改善面部松弛和法令纹。客户对热玛吉项目有一定了解，但对疼痛感有顾虑。同时客户提到想做双眼皮和玻尿酸填充。建议按项目拆分跟进策略。",
   "keyPoints": [
-    { "topic": "面部抗衰", "description": "客户希望改善面部松弛和法令纹", "intent": "high" },
-    { "topic": "热玛吉", "description": "对热玛吉有初步了解，关注效果持续时间", "intent": "high" },
-    { "topic": "疼痛顾虑", "description": "担心治疗过程的疼痛感", "intent": "medium" }
+    { "topic": "热玛吉", "description": "改善面部松弛和法令纹，高意向", "intent": "high" },
+    { "topic": "双眼皮", "description": "想做但还在犹豫，中等意向", "intent": "medium" },
+    { "topic": "玻尿酸填充", "description": "想填充太阳穴，低意向", "intent": "low" }
   ],
   "blockers": [
-    { "type": "pain", "detail": "客户多次询问疼不疼，表示非常怕疼", "suggestedResponse": "我院采用舒适化无痛打法，配合表麻，90%客户反馈几乎无痛感" },
-    { "type": "price", "detail": "预算在2-3万，对比了多家机构价格", "suggestedResponse": "强调性价比和长期效果，本月有周年庆活动可享受8折优惠" },
-    { "type": "trust", "detail": "需要看到真实案例才愿意尝试", "suggestedResponse": "提供3个与客户情况类似的前后对比案例" }
+    { "type": "pain", "detail": "非常怕疼，多次询问疼痛问题", "suggestedResponse": "我院采用舒适化无痛打法，配合表麻，90%客户反馈几乎无痛感" },
+    { "type": "price", "detail": "预算在2-3万，对比多家机构", "suggestedResponse": "强调性价比，本月有周年庆活动可享受8折优惠" }
   ],
   "decisionMakers": ["客户本人", "需与老公商量"],
   "tags": [
     { "category": "项目意向", "value": "热玛吉" },
-    { "category": "核心顾虑", "value": "怕疼" },
-    { "category": "预算敏感度", "value": "中等" }
+    { "category": "项目意向", "value": "双眼皮" },
+    { "category": "项目意向", "value": "玻尿酸" },
+    { "category": "核心顾虑", "value": "怕疼" }
   ],
-  "followUpStrategy": {
-    "summary": "客户对面部抗衰有明确需求，预算充足但对疼痛有顾虑。建议重点展示舒适化治疗方案，提供真实案例建立信任，适时推送优惠活动促成到院。",
-    "talkingPoints": [
-      "王姐，关于您担心的疼痛问题，我院采用的是舒适化无痛打法，配合表麻，90%的客户都反馈几乎感觉不到疼痛，很多怕疼的客户都能轻松完成治疗。",
-      "我这边有几个和您情况类似的客户案例，做完热玛吉后法令纹明显变浅，效果非常自然，我发给您看看？",
-      "刚好这个月有周年庆活动，热玛吉全脸可以享受8折优惠，建议您先到院做一个免费的面部检测，医生会根据您的具体情况制定个性化方案。"
-    ],
-    "bestFollowUpTime": "面诊后24小时内，建议上午10:00-11:00通过微信联系",
-    "caseReferences": ["怕疼客户舒适化治疗案例", "法令纹改善对比案例", "热玛吉面部抗衰成功案例"]
-  }
+  "projectStrategies": [
+    {
+      "projectId": "热玛吉",
+      "projectType": "抗衰",
+      "strategies": [
+        {
+          "title": "发送怕疼客户案例",
+          "talkingPoint": "王姐，关于您担心的疼痛问题，我院采用的是舒适化无痛打法，配合表麻，90%的客户都反馈几乎感觉不到疼痛。我这边有几个和您情况类似的客户案例，做完热玛吉后法令纹明显变浅，效果非常自然，我发给您看看？",
+          "executeAt": "{{tomorrow}}T10:00:00Z"
+        },
+        {
+          "title": "推送优惠活动",
+          "talkingPoint": "王姐，刚好这个月有周年庆活动，热玛吉全脸可以享受8折优惠，建议您先到院做一个免费的面部检测，医生会根据您的具体情况制定个性化方案。",
+          "executeAt": "{{day3}}T14:00:00Z"
+        }
+      ]
+    },
+    {
+      "projectId": "双眼皮",
+      "projectType": "眼部",
+      "strategies": [
+        {
+          "title": "发送双眼皮案例",
+          "talkingPoint": "王姐，关于您想做的双眼皮，我院有多种术式可以选择，包括全切、埋线和微创。我给您发几个和您眼型类似的案例参考一下？",
+          "executeAt": "{{day3}}T10:00:00Z"
+        }
+      ]
+    },
+    {
+      "projectId": "玻尿酸填充",
+      "projectType": "微整",
+      "strategies": [
+        {
+          "title": "介绍玻尿酸品牌",
+          "talkingPoint": "王姐，关于您想做的玻尿酸填充太阳穴，我院有多个品牌可以选择，包括乔雅登、瑞蓝等进口品牌。填充效果自然，恢复期短。您方便的时候可以到院咨询一下。",
+          "executeAt": "{{day7}}T10:00:00Z"
+        }
+      ]
+    }
+  ]
 }`;
     }
 

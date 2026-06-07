@@ -31,7 +31,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">创建时间</div>
-        <div class="stat-value" style="font-size:16px">{{ new Date(customer.createdAt).toLocaleDateString() }}</div>
+        <div class="stat-value" style="font-size:16px">{{ formatDate(customer.createdAt) }}</div>
       </div>
     </div>
 
@@ -68,7 +68,7 @@
         <el-timeline-item
           v-for="p in customer.projects"
           :key="p.id"
-          :timestamp="new Date(p.date).toLocaleDateString()"
+          :timestamp="formatDate(p.date)"
           placement="top"
         >
           <div class="timeline-item">
@@ -88,6 +88,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import request from '@/api/request';
+import { formatDate } from '@/utils/date';
 
 const route = useRoute();
 const customer = ref<any>(null);

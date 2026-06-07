@@ -43,6 +43,9 @@ export class ConsultationSession {
   @Column('int', { default: 0 })
   duration: number;
 
+  @Column({ name: 'consultation_date', type: 'date', nullable: true })
+  consultationDate: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

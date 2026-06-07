@@ -53,7 +53,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="triggerDate" label="到期日" width="120">
-          <template #default="{ row }">{{ new Date(row.triggerDate).toLocaleDateString() }}</template>
+          <template #default="{ row }">{{ formatDate(row.triggerDate) }}</template>
         </el-table-column>
       </el-table>
 
@@ -71,6 +71,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import request from '@/api/request';
+import { formatDate } from '@/utils/date';
 
 const tasks = ref<any[]>([]);
 const loading = ref(false);

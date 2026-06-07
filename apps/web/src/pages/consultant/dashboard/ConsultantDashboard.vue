@@ -52,7 +52,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="triggerDate" label="到期日" width="120">
-          <template #default="{ row }">{{ new Date(row.triggerDate).toLocaleDateString() }}</template>
+          <template #default="{ row }">{{ formatDate(row.triggerDate) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
@@ -71,7 +71,7 @@
         <el-col v-for="c in recentCustomers" :key="c.customerId" :xs="12" :sm="8" :md="6" style="margin-bottom:12px">
           <el-card shadow="hover" @click="$router.push(`/dashboard/customers/${c.customerId}`)" style="cursor:pointer">
             <div style="font-weight:600; margin-bottom:4px">{{ c.customerName }}</div>
-            <div style="font-size:12px; color:#909399">{{ c.lastActivityType }} · {{ new Date(c.lastActivity).toLocaleDateString() }}</div>
+            <div style="font-size:12px; color:#909399">{{ c.lastActivityType }} · {{ formatDate(c.lastActivity) }}</div>
           </el-card>
         </el-col>
       </el-row>
@@ -84,6 +84,7 @@
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import request from '@/api/request';
+import { formatDate } from '@/utils/date';
 
 const metrics = ref({ totalCustomers: 0, todayTasks: 0, sessionsThisMonth: 0, conversionRate: 0, taskCompletionRate: 0, followUpRate: 0 });
 const todayTasks = ref<any[]>([]);

@@ -26,7 +26,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">创建时间</div>
-          <div class="stat-value" style="font-size:14px">{{ new Date(plan.createdAt).toLocaleString() }}</div>
+          <div class="stat-value" style="font-size:14px">{{ formatDateTime(plan.createdAt) }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">跟进次数</div>
@@ -146,7 +146,7 @@
           <el-timeline-item
             v-for="(record, i) in plan.followUpRecords"
             :key="i"
-            :timestamp="new Date(record.contactedAt).toLocaleString()"
+            :timestamp="formatDateTime(record.contactedAt)"
             placement="top"
           >
             <div class="record-item">
@@ -158,7 +158,7 @@
               </div>
               <p v-if="record.notes" style="margin-top:4px; color:#606266">{{ record.notes }}</p>
               <p v-if="record.nextFollowUpDate" style="margin-top:4px; color:#909399; font-size:12px">
-                下次跟进：{{ new Date(record.nextFollowUpDate).toLocaleDateString() }}
+                下次跟进：{{ formatDate(record.nextFollowUpDate) }}
               </p>
             </div>
           </el-timeline-item>
@@ -203,7 +203,7 @@
           <el-input v-model="followUpForm.notes" type="textarea" :rows="3" placeholder="跟进详情..." />
         </el-form-item>
         <el-form-item label="下次跟进">
-          <el-date-picker v-model="followUpForm.nextFollowUpDate" type="date" style="width:100%" />
+          <el-date-picker v-model="followUpForm.nextFollowUpDate" type="date" style="width:100%" value-format="YYYY-MM-DD" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -220,6 +220,7 @@ import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Loading } from '@element-plus/icons-vue';
 import request from '@/api/request';
+import { formatDateTime, formatDate } from '@/utils/date';
 
 const route = useRoute();
 const plan = ref<any>(null);

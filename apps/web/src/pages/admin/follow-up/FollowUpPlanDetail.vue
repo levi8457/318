@@ -32,7 +32,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">创建时间</div>
-          <div class="stat-value" style="font-size:14px">{{ new Date(plan.createdAt).toLocaleString() }}</div>
+          <div class="stat-value" style="font-size:14px">{{ formatDateTime(plan.createdAt) }}</div>
         </div>
       </div>
 
@@ -70,7 +70,7 @@
           <el-timeline-item
             v-for="(record, i) in plan.followUpRecords"
             :key="i"
-            :timestamp="new Date(record.contactedAt).toLocaleString()"
+            :timestamp="formatDateTime(record.contactedAt)"
             placement="top"
           >
             <div class="record-item">
@@ -99,6 +99,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { Loading } from '@element-plus/icons-vue';
 import request from '@/api/request';
+import { formatDateTime } from '@/utils/date';
 
 const route = useRoute();
 const plan = ref<any>(null);

@@ -35,7 +35,7 @@ export class SessionService {
     });
   }
 
-  async create(customerId: string, consultantId: string, transcript?: string) {
+  async create(customerId: string, consultantId: string, transcript?: string, consultationDate?: string) {
     // 如果有转写文本，直接进入转写中状态；否则为待处理状态
     const hasTranscript = !!transcript && transcript.trim().length > 0;
 
@@ -43,6 +43,7 @@ export class SessionService {
       customerId,
       consultantId,
       transcript: transcript || '',
+      consultationDate: consultationDate || new Date().toISOString().split('T')[0],
       status: hasTranscript ? 'transcribing' : 'pending',
     });
 
@@ -145,6 +146,11 @@ export class SessionService {
       // 解析 LLM 返回的 JSON
       const analysis = this.parseAnalysisResponse(response.content);
 
+      // 处理时间占位符
+      if (analysis.projectStrategies) {
+        analysis.projectStrategies = this.resolveTimePlaceholders(analysis.projectStrategies, session.consultationDate);
+      }
+
       // 提取并保存标签
       if (analysis.tags?.length) {
         await this.extractAndSaveTags(analysis.tags, session.customerId);
@@ -157,14 +163,14 @@ export class SessionService {
         keyPoints: analysis.keyPoints || [],
         blockers: analysis.blockers || [],
         decisionMakers: analysis.decisionMakers || [],
-        followUpStrategy: analysis.followUpStrategy || {},
+        followUpStrategy: analysis.projectStrategies || analysis.followUpStrategy || {},
       } as any);
 
       // 自动创建跟进策略草稿
       const updatedSession = await this.sessionRepo.findOne({ where: { id: sessionId } });
       if (updatedSession) {
         try {
-          await this.followUpPlanService.createFromSession(updatedSession);
+          await this.followUpPlanService.createFromSession(updatedSession, analysis.projectStrategies);
           console.log(`[Session] 已为会话 ${sessionId} 创建跟进策略草稿`);
         } catch (err: any) {
           console.error('[Session] 创建跟进策略草稿失败:', err.message);
@@ -178,6 +184,38 @@ export class SessionService {
       await this.fallbackAnalysis(sessionId, session);
       return this.sessionRepo.findOne({ where: { id: sessionId } });
     }
+  }
+
+  /**
+   * 处理时间占位符
+   * 将 {{tomorrow}}, {{day3}} 等占位符替换为实际日期
+   */
+  private resolveTimePlaceholders(projectStrategies: any[], baseDate?: string): any[] {
+    // 使用面诊日期作为基准，而不是当前时间
+    const anchorDate = baseDate ? new Date(baseDate) : new Date();
+    anchorDate.setHours(0, 0, 0, 0);
+
+    const getDateStr = (daysToAdd: number): string => {
+      const date = new Date(anchorDate);
+      date.setDate(date.getDate() + daysToAdd);
+      return date.toISOString().split('T')[0];
+    };
+
+    return projectStrategies.map(ps => ({
+      ...ps,
+      strategies: (ps.strategies || []).map((s: any) => {
+        let executeAt = s.executeAt || '';
+        executeAt = executeAt.replace('{{today}}', getDateStr(0));
+        executeAt = executeAt.replace('{{tomorrow}}', getDateStr(1));
+        executeAt = executeAt.replace('{{day2}}', getDateStr(2));
+        executeAt = executeAt.replace('{{day3}}', getDateStr(3));
+        executeAt = executeAt.replace('{{day5}}', getDateStr(5));
+        executeAt = executeAt.replace('{{day7}}', getDateStr(7));
+        executeAt = executeAt.replace('{{day14}}', getDateStr(14));
+        executeAt = executeAt.replace('{{day30}}', getDateStr(30));
+        return { ...s, executeAt };
+      }),
+    }));
   }
 
   /**

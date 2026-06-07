@@ -1,15 +1,16 @@
 import * as dotenv from 'dotenv';
 import { join } from 'path';
 
-// 加载 .env 文件
+// 加载 .env 文件（override: true 强制覆盖系统环境变量）
 const envFile = process.env.APP_ENV === 'production' ? '.env.production' : '.env';
-dotenv.config({ path: join(__dirname, '..', '..', '..', envFile) });
+dotenv.config({ path: join(__dirname, '..', '..', '..', envFile), override: true });
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { DateSerializationInterceptor } from './common/interceptors/date-serialization.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -33,6 +34,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // 全局日期序列化拦截器：将 Date 对象转为 ISO 字符串
+  app.useGlobalInterceptors(new DateSerializationInterceptor());
 
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',

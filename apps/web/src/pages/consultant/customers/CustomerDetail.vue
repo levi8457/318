@@ -27,15 +27,15 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">生日</div>
-        <div class="stat-value" style="font-size:16px">{{ customer.birthday ? new Date(customer.birthday).toLocaleDateString() : '-' }}</div>
+        <div class="stat-value" style="font-size:16px">{{ formatDate(customer.birthday) }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">纪念日</div>
-        <div class="stat-value" style="font-size:16px">{{ customer.anniversary ? new Date(customer.anniversary).toLocaleDateString() : '-' }}</div>
+        <div class="stat-value" style="font-size:16px">{{ formatDate(customer.anniversary) }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">最近项目日期</div>
-        <div class="stat-value" style="font-size:16px">{{ customer.lastBeautyDate ? new Date(customer.lastBeautyDate).toLocaleDateString() : '-' }}</div>
+        <div class="stat-value" style="font-size:16px">{{ formatDate(customer.lastBeautyDate) }}</div>
       </div>
     </div>
 
@@ -113,7 +113,7 @@
         <el-timeline-item
           v-for="p in customer.projects"
           :key="p.id"
-          :timestamp="new Date(p.date).toLocaleDateString()"
+          :timestamp="formatDate(p.date)"
           placement="top"
         >
           <div class="timeline-item">
@@ -134,19 +134,38 @@
       <h3>快速操作</h3>
       <div style="display:flex; gap:12px; margin-top:12px">
         <el-button type="primary" @click="showSessionDialog = true">创建面诊会话</el-button>
-        <el-button type="success" @click="generateTasks">生成跟进任务</el-button>
+        <el-button type="success" @click="showGenerateTaskDialog">生成跟进任务</el-button>
       </div>
     </div>
+
+    <!-- 生成任务弹窗 -->
+    <el-dialog title="生成跟进任务" v-model="showTaskDialog" width="400px">
+      <p style="color:#909399; margin-bottom:16px">选择手术/面诊日期，系统将自动生成对应的跟进任务。</p>
+      <el-form label-width="80px">
+        <el-form-item label="手术日期">
+          <el-date-picker v-model="procedureDate" type="date" style="width:100%" placeholder="选择手术/面诊日期" value-format="YYYY-MM-DD" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showTaskDialog = false">取消</el-button>
+        <el-button type="primary" @click="generateTasks" :loading="generatingTasks">生成任务</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 创建会话弹窗 -->
     <el-dialog title="创建面诊会话" v-model="showSessionDialog" width="600px">
       <p style="color:#909399; margin-bottom:16px">
         输入面诊转写文本，系统将自动进行 AI 分析并生成跟进策略。
       </p>
+      <el-form label-width="80px" style="margin-bottom:16px">
+        <el-form-item label="面诊日期">
+          <el-date-picker v-model="sessionConsultDate" type="date" style="width:100%" placeholder="选择面诊/咨询日期" value-format="YYYY-MM-DD" />
+        </el-form-item>
+      </el-form>
       <el-input
         v-model="sessionTranscript"
         type="textarea"
-        :rows="10"
+        :rows="8"
         placeholder="请输入面诊转写文本...&#10;&#10;示例：&#10;咨询师：您好王姐，今天来是想了解哪方面的项目？&#10;客户：我想做热玛吉，但是听说很疼..."
       />
       <template #footer>
@@ -193,7 +212,7 @@
       <el-form :model="projectForm" label-width="80px">
         <el-form-item label="项目名称"><el-input v-model="projectForm.projectName" placeholder="如：热玛吉面部抗衰" /></el-form-item>
         <el-form-item label="项目类型"><el-input v-model="projectForm.projectType" placeholder="如：抗衰、塑形" /></el-form-item>
-        <el-form-item label="日期"><el-date-picker v-model="projectForm.date" type="date" style="width:100%" /></el-form-item>
+        <el-form-item label="日期"><el-date-picker v-model="projectForm.date" type="date" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="projectForm.notes" type="textarea" :rows="2" /></el-form-item>
       </el-form>
       <template #footer>
@@ -209,6 +228,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import request from '@/api/request';
+import { formatDate } from '@/utils/date';
 
 const route = useRoute();
 const customer = ref<any>(null);
@@ -219,6 +239,10 @@ const showProjectDialog = ref(false);
 const showSessionDialog = ref(false);
 const creatingSession = ref(false);
 const sessionTranscript = ref('');
+const sessionConsultDate = ref<Date | null>(new Date());
+const showTaskDialog = ref(false);
+const generatingTasks = ref(false);
+const procedureDate = ref<Date | null>(new Date());
 
 const tagForm = ref({ category: '', value: '' });
 const prefForm = ref({ category: '', content: '', importance: 'normal' });
@@ -295,6 +319,7 @@ async function createSessionWithTranscript() {
     const res: any = await request.post('/sessions', {
       customerId: route.params.id,
       transcript: sessionTranscript.value,
+      consultationDate: sessionConsultDate.value?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
     });
     ElMessage.success('面诊会话已创建，AI 正在分析...');
     showSessionDialog.value = false;
@@ -309,9 +334,29 @@ async function createSessionWithTranscript() {
   creatingSession.value = false;
 }
 
+function showGenerateTaskDialog() {
+  procedureDate.value = new Date();
+  showTaskDialog.value = true;
+}
+
 async function generateTasks() {
-  await request.post('/tasks/generate', { customerId: route.params.id });
-  ElMessage.success('跟进任务已生成');
+  if (!procedureDate.value) {
+    ElMessage.warning('请选择手术日期');
+    return;
+  }
+
+  generatingTasks.value = true;
+  try {
+    await request.post('/tasks/generate', {
+      customerId: route.params.id,
+      procedureDate: procedureDate.value.toISOString().split('T')[0],
+    });
+    ElMessage.success('跟进任务已生成');
+    showTaskDialog.value = false;
+  } catch {
+    ElMessage.error('生成任务失败');
+  }
+  generatingTasks.value = false;
 }
 
 onMounted(fetchData);

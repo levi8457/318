@@ -86,7 +86,7 @@
           <el-input v-model="form.discount" placeholder="如：8折/立减2000" />
         </el-form-item>
         <el-form-item label="活动日期">
-          <el-date-picker v-model="form.dateRange" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" style="width:100%" />
+          <el-date-picker v-model="form.dateRange" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" style="width:100%" value-format="YYYY-MM-DD" />
         </el-form-item>
       </el-form>
       <template #footer>

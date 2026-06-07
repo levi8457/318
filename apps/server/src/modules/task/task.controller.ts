@@ -28,6 +28,11 @@ class GenerateTasksDto {
   @IsOptional()
   @IsString()
   projectType?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-01' })
+  @IsOptional()
+  @IsString()
+  procedureDate?: string;
 }
 
 @ApiTags('任务管理')
@@ -52,7 +57,7 @@ export class TaskController {
   @Post('generate')
   @ApiOperation({ summary: '根据项目自动生成 SOP 任务' })
   generateTasks(@Body() dto: GenerateTasksDto, @CurrentUser('userId') userId: string) {
-    return this.taskService.generateTasks(dto.customerId, userId, dto.projectType);
+    return this.taskService.generateTasks(dto.customerId, userId, dto.projectType, dto.procedureDate);
   }
 
   @Get('calendar')

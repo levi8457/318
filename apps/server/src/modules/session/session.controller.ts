@@ -20,6 +20,11 @@ class CreateSessionDto {
   @IsOptional()
   @IsString()
   transcript?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-01' })
+  @IsOptional()
+  @IsString()
+  consultationDate?: string;
 }
 
 class UpdateTranscriptDto {
@@ -45,7 +50,7 @@ export class SessionController {
   @Post()
   @ApiOperation({ summary: '创建面诊会话（含 Mock AI 分析）' })
   create(@Body() dto: CreateSessionDto, @CurrentUser('userId') userId: string) {
-    return this.sessionService.create(dto.customerId, userId, dto.transcript);
+    return this.sessionService.create(dto.customerId, userId, dto.transcript, dto.consultationDate);
   }
 
   @Post(':id/audio')

@@ -41,6 +41,9 @@
         <el-table-column prop="lastContactAt" label="最后联系" width="120">
           <template #default="{ row }">{{ row.lastContactAt ? new Date(row.lastContactAt).toLocaleDateString() : '-' }}</template>
         </el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" width="120">
+          <template #default="{ row }">{{ row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '-' }}</template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->

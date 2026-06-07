@@ -39,7 +39,11 @@
         </el-table-column>
         <el-table-column prop="careMessage" label="关怀话术" show-overflow-tooltip min-width="150" />
         <el-table-column prop="triggerDate" label="到期日" width="120">
-          <template #default="{ row }">{{ new Date(row.triggerDate).toLocaleDateString() }}</template>
+          <template #default="{ row }">
+            <span :class="{ 'text-danger': isOverdue(row) }">
+              {{ row.triggerDate ? formatDate(row.triggerDate) : '-' }}
+            </span>
+          </template>
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
@@ -118,6 +122,26 @@ async function cancelTask(id: string) {
   fetchData();
 }
 
+function isOverdue(task: any): boolean {
+  if (task.status === 'completed' || task.status === 'cancelled') return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(task.triggerDate) < today;
+}
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  if (date.toDateString() === today.toDateString()) return '今天';
+  if (date.toDateString() === tomorrow.toDateString()) return '明天';
+  return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+}
+
 onMounted(fetchData);
 </script>
 
@@ -126,7 +150,6 @@ onMounted(fetchData);
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
-  align-items: center;
   flex-wrap: wrap;
 }
 
@@ -138,5 +161,10 @@ onMounted(fetchData);
   border-top: 1px solid #eee;
   color: #606266;
   font-size: 14px;
+}
+
+.text-danger {
+  color: #f56c6c;
+  font-weight: 600;
 }
 </style>

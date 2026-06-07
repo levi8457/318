@@ -10,7 +10,7 @@
       <el-button type="primary" style="margin-top:16px" @click="fetchData">重试</el-button>
     </div>
 
-    <template v-else-if="session">
+    <div v-else-if="session">
       <div class="page-header">
         <el-button @click="$router.back()">返回</el-button>
         <h2 class="page-title" style="display:inline; margin-left:12px">会话详情</h2>
@@ -131,7 +131,7 @@
         </div>
       </div>
 
-      <!-- 跟进策略（集成在页面内） -->
+      <!-- 跟进策略（按项目分组） -->
       <div class="table-card" v-if="followUpPlan">
         <div class="section-header">
           <h3>跟进策略</h3>
@@ -140,56 +140,63 @@
           </el-tag>
         </div>
 
-        <!-- 跟进话术（可编辑） -->
-        <div style="margin-top:16px">
-          <div class="section-header">
-            <h4>跟进话术</h4>
-            <el-button v-if="isPlanEditable" size="small" type="primary" @click="addTalkingPoint">
-              + 添加话术
+        <!-- 项目策略列表 -->
+        <div v-for="(ps, pi) in projectStrategies" :key="pi" class="project-strategy">
+          <div class="project-header">
+            <el-tag type="primary" size="small">{{ ps.projectType }}</el-tag>
+            <span class="project-name">{{ ps.projectId }}</span>
+            <el-button v-if="isPlanEditable" size="small" type="primary" @click="addStrategyToProject(pi)">
+              + 添加策略
             </el-button>
           </div>
-          <div v-for="(tp, i) in talkingPoints" :key="i" class="talking-point-item">
-            <div class="tp-content">
+
+          <div v-for="(strategy, si) in ps.strategies" :key="strategy.id || si" class="strategy-item">
+            <div class="strategy-header">
+              <div class="strategy-title">
+                <el-icon v-if="strategy.status === 'completed'" style="color:#67c23a"><CircleCheck /></el-icon>
+                <el-icon v-else-if="strategy.status === 'pending'" style="color:#e6a23c"><Clock /></el-icon>
+                <el-input v-if="isPlanEditable" v-model="strategy.title" size="small" placeholder="策略标题" style="width:200px" />
+                <span v-else>{{ strategy.title }}</span>
+              </div>
+              <div class="strategy-time">
+                <el-date-picker
+                  v-if="isPlanEditable"
+                  v-model="strategy.executeAt"
+                  type="datetime"
+                  size="small"
+                  placeholder="选择执行时间"
+                  format="MM/DD HH:mm"
+                  value-format="YYYY-MM-DDTHH:mm:ssZ"
+                  style="width:180px"
+                />
+                <template v-else>
+                  <el-icon><Calendar /></el-icon>
+                  <span>{{ formatExecuteTime(strategy.executeAt) }}</span>
+                </template>
+              </div>
+            </div>
+
+            <div class="strategy-content">
               <el-input
                 v-if="isPlanEditable"
-                v-model="talkingPoints[i]"
+                v-model="strategy.talkingPoint"
                 type="textarea"
-                :rows="2"
+                :rows="3"
+                placeholder="话术内容..."
               />
-              <p v-else>{{ tp }}</p>
+              <p v-else>{{ strategy.talkingPoint }}</p>
             </div>
-            <el-button
-              v-if="isPlanEditable"
-              type="danger"
-              link
-              size="small"
-              @click="talkingPoints.splice(i, 1)"
-            >
-              删除
-            </el-button>
-            <el-button
-              v-else
-              type="primary"
-              link
-              size="small"
-              @click="copyText(tp)"
-            >
-              复制
-            </el-button>
-          </div>
-          <el-empty v-if="!talkingPoints.length" description="暂无话术" :image-size="60" />
-        </div>
 
-        <!-- 最佳跟进时间 -->
-        <div style="margin-top:16px">
-          <h4>最佳跟进时间</h4>
-          <el-input
-            v-if="isPlanEditable"
-            v-model="bestFollowUpTime"
-            placeholder="如：面诊后24小时内，上午10:00-11:00"
-            style="margin-top:8px"
-          />
-          <p v-else style="margin-top:8px; color:#606266">{{ bestFollowUpTime || '-' }}</p>
+            <div class="strategy-actions" v-if="isPlanEditable || strategy.taskId">
+              <el-button v-if="isPlanEditable" type="danger" link size="small" @click="removeStrategy(pi, si)">
+                删除
+              </el-button>
+              <el-button v-if="!isPlanEditable" type="primary" link size="small" @click="copyText(strategy.talkingPoint)">
+                复制话术
+              </el-button>
+              <el-tag v-if="strategy.taskId" size="small" type="success">已生成任务</el-tag>
+            </div>
+          </div>
         </div>
 
         <!-- 咨询师备注 -->
@@ -210,7 +217,7 @@
         <div style="margin-top:16px; display:flex; gap:12px" v-if="isPlanEditable">
           <el-button type="primary" @click="savePlan" :loading="savingPlan">保存修改</el-button>
           <el-button type="success" @click="confirmPlan" :loading="savingPlan" v-if="followUpPlan.status === 'draft'">
-            确认策略
+            确认策略并生成任务
           </el-button>
         </div>
 
@@ -232,7 +239,7 @@
             <el-timeline-item
               v-for="(record, i) in followUpPlan.followUpRecords"
               :key="i"
-              :timestamp="new Date(record.contactedAt).toLocaleString()"
+              :timestamp="formatDateTime(record.contactedAt)"
               placement="top"
             >
               <div class="record-item">
@@ -244,7 +251,7 @@
                 </div>
                 <p v-if="record.notes" style="margin-top:4px; color:#606266">{{ record.notes }}</p>
                 <p v-if="record.nextFollowUpDate" style="margin-top:4px; color:#909399; font-size:12px">
-                  下次跟进：{{ new Date(record.nextFollowUpDate).toLocaleDateString() }}
+                  下次跟进：{{ formatDate(record.nextFollowUpDate) }}
                 </p>
               </div>
             </el-timeline-item>
@@ -266,7 +273,7 @@
           <el-button type="primary" @click="fetchData">刷新状态</el-button>
         </div>
       </div>
-    </template>
+    </div>
 
     <div v-else style="padding:60px; text-align:center">
       <p style="color:#909399">会话不存在或已被删除</p>
@@ -297,7 +304,7 @@
           <el-input v-model="followUpForm.notes" type="textarea" :rows="3" placeholder="跟进详情..." />
         </el-form-item>
         <el-form-item label="下次跟进">
-          <el-date-picker v-model="followUpForm.nextFollowUpDate" type="date" style="width:100%" />
+          <el-date-picker v-model="followUpForm.nextFollowUpDate" type="date" style="width:100%" value-format="YYYY-MM-DD" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -312,9 +319,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Loading, Upload } from '@element-plus/icons-vue';
+import { Loading, Upload, CircleCheck, Clock, Calendar } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import request from '@/api/request';
+import { formatDateTime, formatDate } from '@/utils/date';
 
 const route = useRoute();
 const userStore = useAuthStore();
@@ -323,6 +331,7 @@ const token = userStore.token || '';
 const session = ref<any>(null);
 const customerTags = ref<any[]>([]);
 const followUpPlan = ref<any>(null);
+const projectStrategies = ref<any[]>([]);
 const transcriptText = ref('');
 const uploading = ref(false);
 const uploadProgress = ref(0);
@@ -331,9 +340,6 @@ const loading = ref(true);
 const error = ref('');
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-// 跟进策略编辑字段
-const talkingPoints = ref<string[]>([]);
-const bestFollowUpTime = ref('');
 const consultantNotes = ref('');
 const savingPlan = ref(false);
 const completingPlan = ref(false);
@@ -466,12 +472,12 @@ async function fetchFollowUpPlan() {
     });
     if (res && res.length > 0) {
       followUpPlan.value = res[0];
-      talkingPoints.value = [...(followUpPlan.value.talkingPoints || [])];
-      bestFollowUpTime.value = followUpPlan.value.bestFollowUpTime || '';
+      projectStrategies.value = followUpPlan.value.projectStrategies || [];
       consultantNotes.value = followUpPlan.value.consultantNotes || '';
     }
   } catch {
     followUpPlan.value = null;
+    projectStrategies.value = [];
   }
 }
 
@@ -575,8 +581,34 @@ async function updateTranscript() {
 }
 
 // 跟进策略操作
-function addTalkingPoint() {
-  talkingPoints.value.push('');
+function addStrategyToProject(projectIndex: number) {
+  const now = new Date();
+  now.setDate(now.getDate() + 1);
+  projectStrategies.value[projectIndex].strategies.push({
+    id: Date.now().toString(),
+    title: '',
+    talkingPoint: '',
+    executeAt: now.toISOString(),
+    status: 'pending',
+  });
+}
+
+function removeStrategy(projectIndex: number, strategyIndex: number) {
+  projectStrategies.value[projectIndex].strategies.splice(strategyIndex, 1);
+}
+
+function formatExecuteTime(dateStr: string): string {
+  if (!dateStr) return '未设置';
+  try {
+    return new Date(dateStr).toLocaleString('zh-CN', {
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
 }
 
 async function savePlan() {
@@ -584,8 +616,7 @@ async function savePlan() {
   savingPlan.value = true;
   try {
     await request.put(`/follow-up-plans/${followUpPlan.value.id}`, {
-      talkingPoints: talkingPoints.value.filter(t => t.trim()),
-      bestFollowUpTime: bestFollowUpTime.value,
+      projectStrategies: projectStrategies.value,
       consultantNotes: consultantNotes.value,
     });
     ElMessage.success('保存成功');
@@ -601,11 +632,10 @@ async function confirmPlan() {
   savingPlan.value = true;
   try {
     await request.post(`/follow-up-plans/${followUpPlan.value.id}/confirm`, {
-      talkingPoints: talkingPoints.value.filter(t => t.trim()),
-      bestFollowUpTime: bestFollowUpTime.value,
+      projectStrategies: projectStrategies.value,
       consultantNotes: consultantNotes.value,
     });
-    ElMessage.success('策略已确认');
+    ElMessage.success('策略已确认，任务已生成');
     await fetchFollowUpPlan();
   } catch {
     ElMessage.error('确认失败');
@@ -757,5 +787,66 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.project-strategy {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.project-name {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.strategy-item {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.strategy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.strategy-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.strategy-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.strategy-content {
+  margin: 8px 0;
+}
+
+.strategy-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
 }
 </style>

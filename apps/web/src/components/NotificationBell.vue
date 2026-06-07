@@ -49,6 +49,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Bell, Clock, WarningFilled, InfoFilled } from '@element-plus/icons-vue';
 import request from '@/api/request';
+import { formatDateTime, safeParseDate } from '@/utils/date';
 
 const panelVisible = ref(false);
 const loading = ref(false);
@@ -101,7 +102,8 @@ async function handleClick(item: any) {
 }
 
 function formatTime(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = safeParseDate(dateStr);
+  if (!date) return '-';
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   const minutes = Math.floor(diff / 60000);
@@ -112,7 +114,7 @@ function formatTime(dateStr: string): string {
   if (minutes < 60) return `${minutes}分钟前`;
   if (hours < 24) return `${hours}小时前`;
   if (days < 7) return `${days}天前`;
-  return date.toLocaleDateString();
+  return formatDateTime(dateStr);
 }
 
 onMounted(() => {

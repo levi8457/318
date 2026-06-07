@@ -4,7 +4,7 @@
  */
 
 export const SESSION_ANALYSIS_PROMPT = `
-你是一位资深的医美咨询顾问。请分析以下面诊会话的转写文本，结合客户画像信息，生成个性化的分析结果和跟进策略。
+你是一位资深的医美咨询顾问。请分析以下面诊会话的转写文本，结合客户画像信息，生成个性化的分析结果和按项目拆分的跟进策略。
 
 ## 客户画像信息
 {{customerProfile}}
@@ -12,28 +12,46 @@ export const SESSION_ANALYSIS_PROMPT = `
 ## 面诊转写文本
 {{transcript}}
 
+## 当前时间
+{{currentTime}}
+
 ## 输出要求
 请严格按照以下 JSON 格式输出，不要包含任何其他内容：
 
 {
-  "summary": "面诊摘要（200字以内，结合客户画像分析）",
+  "summary": "面诊摘要（200字以内）",
   "keyPoints": [
     { "topic": "主题", "description": "描述", "intent": "high|medium|low" }
   ],
   "blockers": [
-    { "type": "price|pain|trust|family|other", "detail": "详细描述", "suggestedResponse": "建议应对话术（结合客户特点）" }
+    { "type": "price|pain|trust|family|other", "detail": "详细描述", "suggestedResponse": "建议应对话术" }
   ],
   "decisionMakers": ["决策人"],
   "tags": [
     { "category": "标签分类", "value": "标签值" }
   ],
-  "followUpStrategy": {
-    "summary": "策略概述（200字以内，基于客户画像的个性化策略）",
-    "talkingPoints": ["跟进话术1（结合客户备忘录和偏好）", "跟进话术2"],
-    "bestFollowUpTime": "最佳跟进时间",
-    "caseReferences": ["参考案例"]
-  }
+  "projectStrategies": [
+    {
+      "projectId": "项目名称（如：热玛吉）",
+      "projectType": "项目类型（如：抗衰）",
+      "strategies": [
+        {
+          "title": "策略标题（简短描述）",
+          "talkingPoint": "具体话术内容",
+          "executeAt": "ISO时间格式，如：2026-06-07T10:00:00Z"
+        }
+      ]
+    }
+  ]
 }
+
+## 重要规则
+1. 每个项目生成1-2个跟进策略
+2. 每个策略必须有具体的执行时间（基于当前时间推算）
+3. 高意向项目：24小时内跟进
+4. 中意向项目：3天内跟进
+5. 低意向项目：7天内跟进
+6. 话术要结合客户画像和具体卡点
 `;
 
 export const STRATEGY_GENERATION_PROMPT = `
