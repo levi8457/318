@@ -23,6 +23,7 @@ import { AiChatModule } from './modules/ai-chat/ai-chat.module';
 import { WechatPushModule } from './modules/wechat-push/wechat-push.module';
 import { ImportModule } from './modules/import/import.module';
 import { LicenseModule } from './modules/license/license.module';
+import { PaymentModule } from './modules/payment/payment.module';
 import { LeadModule } from './modules/lead/lead.module';
 import { FollowUpPlanModule } from './modules/follow-up-plan/follow-up-plan.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
@@ -67,6 +68,7 @@ import { DataMaskingInterceptor } from './common/interceptors/data-masking.inter
     WechatPushModule,
     ImportModule,
     LicenseModule,
+    PaymentModule,
     LeadModule,
     FollowUpPlanModule,
     SchedulerModule,
